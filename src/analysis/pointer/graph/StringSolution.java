@@ -9,21 +9,37 @@ import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
-public class StringConstraints {
+import com.ibm.wala.classLoader.IField;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
-    private final ConcurrentMap<StringVariableReplica, AString> map;
+public class StringSolution {
+
+    class AbstractLocation {
+        InstanceKey receiver;
+        IField field;
+
+    }
+
+    /**
+     * Map from PointsToGraphNode to abstract string values. The only acceptable PointsToGraphNodes are
+     * StringVariableReplicas and ObjectFields. StringVariableReplicas are used to represent local String-valued
+     * variables, local StringBuilder (i.e., StringBuilders that have not escaped local scope) and static
+     * fields.ObjectFields are used to represent fields of objects of type String or StringBuilder.
+     */
+    private final ConcurrentMap<PointsToGraphNode, AString> map;
+
     private final ReflectiveHAF haf;
     private final StringDependencies stringDependencies;
 
     /* Factory Methods */
 
-    public static StringConstraints make(ReflectiveHAF haf) {
-        return new StringConstraints(haf);
+    public static StringSolution make(ReflectiveHAF haf) {
+        return new StringSolution(haf);
     }
 
     /* Constructors */
 
-    private StringConstraints(ReflectiveHAF haf) {
+    private StringSolution(ReflectiveHAF haf) {
         this.haf = haf;
         this.map = AnalysisUtil.createConcurrentHashMap();
         this.stringDependencies = StringDependencies.make();
@@ -44,19 +60,31 @@ public class StringConstraints {
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
         if (this.stringDependencies.isActive(svr)) {
             // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
-            AString current = this.getOrInitialize(svr, shat);
-            AString newval;
-            do {
-                current = this.map.get(svr);
-                newval = current.join(shat);
-            } while (!newval.equals(current) && !this.map.replace(svr, current, newval));
-
-            if (newval.equals(current)) {
-                // We didn't change the AString for svr.
-                return StringConstraintDelta.makeEmpty(this);
+            AString current = this.map.get(svr);
+            if (current == null) {
+                AString existing = this.map.putIfAbsent(svr, shat);
+                if (existing == null) {
+                    // we definitely updated.
+                    return StringConstraintDelta.makeWithNeedUses(this, svr);
+                }
+                // someone beat us to it
+                current = existing;
             }
-            else {
-                return StringConstraintDelta.makeWithNeedUses(this, svr);
+
+            while (true) {
+                AString newval = current.join(shat);
+                if (newval.equals(current)) {
+                    // We didn't change the AString for svr.
+                    return StringConstraintDelta.makeEmpty(this);
+                }
+                // try to change it
+                if (this.map.replace(svr, current, newval)) {
+                    // We successfully changed it!
+                    return StringConstraintDelta.makeWithNeedUses(this, svr);
+                }
+
+                // someone else snuck in. Try again.
+                current = this.map.get(svr);
             }
         }
         else {

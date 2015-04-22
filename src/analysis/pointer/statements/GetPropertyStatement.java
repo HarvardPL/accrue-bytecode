@@ -12,7 +12,6 @@ import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
@@ -23,6 +22,11 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.MethodReference;
 
+/**
+ * Represents a call "System.getProperty(args)" or "Security.getProperty()".
+ *
+ * We
+ */
 public class GetPropertyStatement extends StringStatement {
 
     private final CallSiteReference callSite;
@@ -53,7 +57,6 @@ public class GetPropertyStatement extends StringStatement {
             argumentsvrs.add(new StringVariableReplica(context, argument));
         }
         GraphDelta newDelta = new GraphDelta(g);
-        PointsToIterable pti = delta == null ? g : delta;
 
         switch (argumentsvrs.size()) {
         case 1:

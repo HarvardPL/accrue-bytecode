@@ -11,7 +11,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.FlowSensitiveStringVariableFactory;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -22,15 +21,33 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.MethodReference;
 
+/**
+ * Represents a method call on a StringBuilder.
+ */
 public class StringMethodCall extends StringStatement {
     private static final int MAX_STRING_SET_SIZE = 5;
 
     private final CallSiteReference callSite;
+
+    /**
+     * Which method was invoked?
+     */
     private final MethodEnum invokedMethod;
-    private final IMethod invokingMethod;
     private final StringVariable result;
+
+    /**
+     * StringVariable representing the value of the receiver object before the method call
+     */
     private final StringVariable receiverUse;
+
+    /**
+     * StringVariable representing the value of the receiver object after the method call
+     */
     private final StringVariable receiverDef;
+
+    /**
+     * Arguments to the method call.
+     */
     private final List<StringVariable> arguments;
     private final FlowSensitiveStringVariableFactory stringVariableFactory;
 
@@ -57,7 +74,6 @@ public class StringMethodCall extends StringStatement {
         super(method);
         this.callSite = callSite;
         this.invokedMethod = imethodToMethodEnum(AnalysisUtil.getClassHierarchy().resolveMethod(declaredTarget));
-        this.invokingMethod = method;
         this.result = svresult;
         this.receiverUse = svreceiverUse;
         this.receiverDef = svreceiverDef;
@@ -71,15 +87,10 @@ public class StringMethodCall extends StringStatement {
         StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
         StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
         StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
-        //        List<StringVariableReplica> argumentRVRs = this.arguments.stream()
-        //                                                                 .map(a -> new StringVariableReplica(context, a, haf))
-        //                                                                 .collect(Collectors.toList());
-        List<StringVariableReplica> argumentSVRs = new ArrayList<>();
+        List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
         for (StringVariable argument : this.arguments) {
             argumentSVRs.add(new StringVariableReplica(context, argument));
         }
-
-        PointsToIterable pti = delta == null ? g : delta;
 
         Logger.println("[StringMethodCall." + this.invokedMethod + "] " + this);
         switch (this.invokedMethod) {

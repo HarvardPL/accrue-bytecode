@@ -93,7 +93,7 @@ public final class PointsToGraph implements PointsToIterable {
      */
     private ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
 
-    private final StringConstraints sc;
+    private final StringSolution sc;
 
     /* ***************************************************************************
     *
@@ -190,7 +190,7 @@ public final class PointsToGraph implements PointsToIterable {
 
         this.haf = haf;
 
-        this.sc = StringConstraints.make((ReflectiveHAF) haf);
+        this.sc = StringSolution.make((ReflectiveHAF) haf);
 
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
@@ -1377,7 +1377,7 @@ public final class PointsToGraph implements PointsToIterable {
 
     }
 
-    public StringConstraints getStringConstraints() {
+    public StringSolution getStringConstraints() {
         return this.sc;
     }
 

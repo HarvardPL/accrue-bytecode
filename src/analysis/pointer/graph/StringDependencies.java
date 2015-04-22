@@ -1,5 +1,6 @@
 package analysis.pointer.graph;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -8,10 +9,28 @@ import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
+/**
+ * Tracks the dependencies between StringVariableReplicas.
+ */
 public class StringDependencies {
     private final Set<StringVariableReplica> active;
+
+    /**
+     * If svr1 ∈ dependsOn.get(svr2) then if the value of svr2 changes, the value of svr1 may need to change
+     *
+     * XXX is this equivalent to { (sac.stmt.getDef(), sac.context)| sac ∈ this.usedBy.get(svr2)} ??
+     *
+     */
     private final ConcurrentMap<StringVariableReplica, Set<StringVariableReplica>> dependsOn;
+
+    /**
+     * definedBy.get(svr) is the set of StmtAndContexts that define svr.
+     */
     private final ConcurrentMap<StringVariableReplica, Set<StmtAndContext>> definedBy;
+
+    /**
+     * usedBy.get(svr) is the set of StmtAndContexts that use svr.
+     */
     private final ConcurrentMap<StringVariableReplica, Set<StmtAndContext>> usedBy;
 
     public static StringDependencies make() {
@@ -25,6 +44,14 @@ public class StringDependencies {
         this.usedBy = AnalysisUtil.createConcurrentHashMap();
     }
 
+    /**
+     * Record that x depends on y, and return the set of StringVariableReplicas that are newly active. (i.e., if x was
+     * active, then y needs to be active, and transitively, any SVR that y depends on).
+     *
+     * @param x
+     * @param y
+     * @return
+     */
     public Set<StringVariableReplica> recordDependency(StringVariableReplica x, StringVariableReplica y) {
         setMapPut(this.dependsOn, x, y);
 
@@ -32,7 +59,7 @@ public class StringDependencies {
             return activate(y);
         }
         else {
-            return AnalysisUtil.createConcurrentSet();
+            return Collections.emptySet();
         }
     }
 
@@ -42,20 +69,19 @@ public class StringDependencies {
     }
 
     public Set<StringVariableReplica> activate(StringVariableReplica x) {
-        if (isActive(x)) {
-            return AnalysisUtil.createConcurrentSet();
-        }
-        else {
-            this.active.add(x);
+        Set<StringVariableReplica> newlyActive = new HashSet<>();
+        activate(x, newlyActive);
+        return newlyActive;
+    }
 
-            Set<StringVariableReplica> sources = new HashSet<>();
-            sources.add(x);
+    private void activate(StringVariableReplica x, Set<StringVariableReplica> newlyActive) {
+        if (this.active.add(x)) {
+            newlyActive.add(x);
             if (this.dependsOn.containsKey(x)) {
                 for (StringVariableReplica y : this.dependsOn.get(x)) {
-                    sources.addAll(activate(y));
+                    activate(y, newlyActive);
                 }
             }
-            return sources;
         }
     }
 
@@ -98,12 +124,12 @@ public class StringDependencies {
         }
     }
 
-    public void printSVRDependencyTree(StringVariableReplica svr, StringConstraints sc) {
+    public void printSVRDependencyTree(StringVariableReplica svr, StringSolution sc) {
         System.err.println("Dependency Tree for : " + svr + " = " + sc.getAStringFor(svr));
         printDependencies("  ", svr, sc);
     }
 
-    private void printDependencies(String prefix, StringVariableReplica svr, StringConstraints sc) {
+    private void printDependencies(String prefix, StringVariableReplica svr, StringSolution sc) {
         for (StringVariableReplica dep : nullElim(this.dependsOn.get(svr), new HashSet<StringVariableReplica>())) {
             System.err.println(prefix + dep + " = " + sc.getAStringFor(dep));
             printDependencies(prefix + "  ", dep, sc);
