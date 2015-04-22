@@ -3,6 +3,7 @@ package analysis.pointer.graph;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import util.Logger;
 import analysis.AnalysisUtil;
@@ -12,7 +13,7 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
 public class StringConstraints {
 
-    private final ConcurrentMap<StringVariableReplica, AString> map;
+    private final ConcurrentMap<StringVariableReplica, AtomicReference<AString>> map;
     private final ReflectiveHAF haf;
     private final AString initialString;
     private final StringDependencies stringDependencies;
@@ -35,20 +36,44 @@ public class StringConstraints {
     /* Logic */
 
     public AString getAStringFor(StringVariableReplica svr) {
-        AString shat = this.map.get(svr);
-        return shat == null ? haf.getAStringBottom() : shat;
+        AtomicReference<AString> ref = this.map.get(svr);
+        if (ref == null) {
+            return haf.getAStringBottom();
+        }
+        else {
+            return ref.get();
+        }
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
         if (this.stringDependencies.isActive(svr)) {
             // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
-            if (this.map.containsKey(svr)) {
-                boolean changedp = this.map.get(svr).join(shat);
-                return changedp ? StringConstraintDelta.makeWithNeedUses(this, svr)
-                        : StringConstraintDelta.makeEmpty(this);
+            AtomicReference<AString> ref = this.map.get(svr);
+            if (ref == null) {
+                ref = new AtomicReference<>(shat); // make the initial value in the atomic reference shat.
+                AtomicReference<AString> existing = this.map.putIfAbsent(svr, ref);
+                if (existing != null) {
+                    // someone beat us to it.
+                    ref = existing;
+                }
+            }
+            // here, ref is not null, and points to the appropriate AtomicReference for svr.
+            // Also, the contents of ref is non-null.
+            AString current, result;
+            do {
+                current = ref.get();
+                result = current.join(shat);
+                if (result.equals(current)) {
+                    // no change!
+                    break;
+                }
+            } while (!ref.compareAndSet(current, result));
+
+            if (result.equals(current)) {
+                // We didn't change the AString for svr.
+                return StringConstraintDelta.makeEmpty(this);
             }
             else {
-                this.map.put(svr, shat.copy());
                 return StringConstraintDelta.makeWithNeedUses(this, svr);
             }
         }
