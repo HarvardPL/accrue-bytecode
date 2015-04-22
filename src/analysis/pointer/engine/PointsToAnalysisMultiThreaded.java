@@ -236,7 +236,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         ConstraintStatement s = sac.stmt;
         Context c = sac.context;
 
-        Logger.push(s.getMethod().toString().contains("main"));
+        Logger.push(true /*s.getMethod().toString().contains("main")*/);
         GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
         Logger.pop();
 

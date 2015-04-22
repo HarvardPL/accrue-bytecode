@@ -65,12 +65,17 @@ public class GetPropertyStatement extends StringStatement {
                 newDelta.combine(g.recordStringVariableDependency(resultsvr, argument));
             }
 
+            Logger.push(true);
+            Logger.println("[GetPropertyStatement] _________________________");
+            Logger.println("[GetPropertyStatement] me: " + this);
+            Logger.println("[GetPropertyStatement] in method " + this.getMethod());
             Logger.println("[GetPropertyStatement] I'm being called: " + g.getAStringFor(argumentsvrs.get(0)));
 
             // XXX: Hack for exploration of results
             AString shat = ((ReflectiveHAF) haf).getAStringSet(Collections.singleton("XXXX"));
 
             Logger.println("[GetPropertyStatement] adding: " + shat);
+            Logger.push(false);
 
             newDelta.combine(g.stringVariableReplicaJoinAt(resultsvr, shat));
             return newDelta;

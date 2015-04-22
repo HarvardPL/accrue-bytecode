@@ -70,9 +70,12 @@ public class ForNameCallStatement extends PointsToStatement {
         GraphDelta changed = new GraphDelta(g);
 
         g.recordStringStatementUseDependency(nameSVR, originator);
-
+        Logger.push(true);
+        Logger.println("[ForNameCallStatement] ___________________________");
         Logger.println("[ForNameCallStatement] in method: " + this.getMethod());
         Logger.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
+
+        g.printSVRDependencyTree(nameSVR);
 
         changed.combine(g.activateStringVariable(nameSVR));
 
@@ -104,7 +107,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         Logger.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
         changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
-
+        Logger.pop();
         return changed;
     }
 

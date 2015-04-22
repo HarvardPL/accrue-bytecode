@@ -1382,7 +1382,7 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     public GraphDelta stringVariableReplicaJoinAt(StringVariableReplica svr, AString shat) {
-        Logger.println("[PointsToGraph] " + svr + " <- " + this.getAStringFor(svr) + " ⊔ " + shat);
+        // Logger.println("[PointsToGraph] " + svr + " <- " + this.getAStringFor(svr) + " ⊔ " + shat);
         return new GraphDelta(this, this.sc.joinAt(svr, shat));
     }
 
@@ -1498,6 +1498,10 @@ public final class PointsToGraph implements PointsToIterable {
         }
 
         return minv;
+    }
+
+    public void printSVRDependencyTree(StringVariableReplica svr) {
+        this.sc.printSVRDependencyTree(svr);
     }
 
 }

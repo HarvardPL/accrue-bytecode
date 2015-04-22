@@ -98,4 +98,33 @@ public class StringDependencies {
         }
     }
 
+    public void printSVRDependencyTree(StringVariableReplica svr, StringConstraints sc) {
+        System.err.println("Dependency Tree for : " + svr + " = " + sc.getAStringFor(svr));
+        printDependencies("  ", svr, sc);
+    }
+
+    private void printDependencies(String prefix, StringVariableReplica svr, StringConstraints sc) {
+        for (StringVariableReplica dep : nullElim(this.dependsOn.get(svr), new HashSet<StringVariableReplica>())) {
+            System.err.println(prefix + dep + " = " + sc.getAStringFor(dep));
+            printDependencies(prefix + "  ", dep, sc);
+        }
+        if (nullElim(this.dependsOn.get(svr), new HashSet<StringVariableReplica>()).isEmpty()) {
+            for (StmtAndContext sac : nullElim(this.definedBy.get(svr), new HashSet<StmtAndContext>())) {
+                System.err.println(prefix + "definedBy: " + sac);
+            }
+            if (nullElim(this.definedBy.get(svr), new HashSet<StmtAndContext>()).isEmpty()) {
+                System.err.println(prefix + "not defined anywhere");
+            }
+        }
+    }
+
+    private <A> A nullElim(A a, A def) {
+        if (a != null) {
+            return a;
+        }
+        else {
+            return def;
+        }
+    }
+
 }

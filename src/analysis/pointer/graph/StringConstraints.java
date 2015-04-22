@@ -41,7 +41,7 @@ public class StringConstraints {
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
         if (this.stringDependencies.isActive(svr)) {
-            Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
+            // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
             if (this.map.containsKey(svr)) {
                 boolean changedp = this.map.get(svr).join(shat);
                 return changedp ? StringConstraintDelta.makeWithNeedUses(this, svr)
@@ -125,6 +125,10 @@ public class StringConstraints {
     @Override
     public String toString() {
         return "StringConstraints [map=" + map + "]";
+    }
+
+    public void printSVRDependencyTree(StringVariableReplica svr) {
+        this.stringDependencies.printSVRDependencyTree(svr, this);
     }
 
 }
