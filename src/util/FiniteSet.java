@@ -58,24 +58,24 @@ public final class FiniteSet<T> {
      *
      * @return true if set changes as a result of this call
      **/
-    public boolean union(FiniteSet<T> that) {
+    public FiniteSet<T> union(FiniteSet<T> that) {
         if (this.maxSize != that.maxSize) {
             throw new IllegalArgumentException("Cannot union finite sets of different sizes. `this` has size "
                     + this.maxSize + " while the other finite set has size " + that.maxSize);
         }
         if (that.items.isSome() && this.items.isSome()) {
             if (that.items.get().size() + this.items.get().size() <= this.maxSize) {
-                return this.items.get().addAll(that.items.get());
+                Set<T> s = AnalysisUtil.createConcurrentSet();
+                s.addAll(this.items.get());
+                s.addAll(that.items.get());
+                return new FiniteSet<T>(this.maxSize, Optional.some(s));
             }
             else {
-                this.items = top;
-                return true;
+                return FiniteSet.makeTop(this.maxSize);
             }
         }
-        else { /* sik is top */
-            boolean wasNotTop = this.items.isSome();
-            this.items = top;
-            return wasNotTop;
+        else {
+            return FiniteSet.makeTop(this.maxSize);
         }
 
     }
@@ -100,10 +100,6 @@ public final class FiniteSet<T> {
         } else {
             return this.getSet().containsAll(that.getSet());
         }
-    }
-
-    public FiniteSet<T> copy() {
-        return FiniteSet.make(this.maxSize, this.items);
     }
 
     public Set<T> getSet() {

@@ -6,40 +6,33 @@ import java.util.Set;
 
 import util.FiniteSet;
 import util.optional.Optional;
-import analysis.AnalysisUtil;
 
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
-import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.collections.Pair;
 import com.ibm.wala.util.functions.Function;
 
 public final class AString {
-    private static final IClass JavaLangStringIClass = AnalysisUtil.getClassHierarchy()
-                                                                   .lookupClass(TypeReference.JavaLangString);
     private FiniteSet<String> fs;
-    private IClass klass;
 
     public static AString makeStringTop(int maxSize) {
-        return new AString(JavaLangStringIClass, FiniteSet.<String> makeTop(maxSize));
+        return new AString(FiniteSet.<String> makeTop(maxSize));
     }
 
     public static AString makeStringBottom(int maxSize) {
-        return new AString(JavaLangStringIClass, FiniteSet.<String> makeBottom(maxSize));
+        return new AString(FiniteSet.<String> makeBottom(maxSize));
     }
 
     public static AString makeStringSet(int maxSize, Collection<String> c) {
-        return new AString(JavaLangStringIClass, FiniteSet.makeFiniteSet(maxSize, c));
+        return new AString(FiniteSet.makeFiniteSet(maxSize, c));
     }
 
     public static AString makeString(int maxSize, Optional<? extends Collection<String>> c) {
-        return new AString(JavaLangStringIClass, FiniteSet.make(maxSize, c));
+        return new AString(FiniteSet.make(maxSize, c));
     }
 
-    private AString(IClass c, FiniteSet<String> fs) {
-        this.klass = c;
+    private AString(FiniteSet<String> fs) {
         this.fs = fs;
     }
 
@@ -48,8 +41,8 @@ public final class AString {
      * @param sik
      * @return true if the join resulted in a new AString
      */
-    public boolean join(AString sik) {
-        return this.fs.union(sik.fs);
+    public AString join(AString sik) {
+        return new AString(this.fs.union(sik.fs));
     }
 
     /**
@@ -63,10 +56,6 @@ public final class AString {
 
     public FiniteSet<String> getFiniteStringSet() {
         return this.fs;
-    }
-
-    public IClass getConcreteType() {
-        return this.klass;
     }
 
     public Iterator<Pair<CGNode, NewSiteReference>> getCreationSites(CallGraph CG) {
@@ -83,10 +72,6 @@ public final class AString {
 
     public boolean upperBounds(AString that) {
         return this.fs.upperBounds(that.fs);
-    }
-
-    public AString copy() {
-        return new AString(JavaLangStringIClass, this.fs.copy());
     }
 
     public AString concat(final AString that) {
@@ -107,7 +92,7 @@ public final class AString {
         //        System.err.print("Just concated, before: " + this.fs);
         FiniteSet<String> s = this.fs.flatMap(fOuter);
         //        System.err.println(", argument: " + that.fs + ", after: " + s);
-        return new AString(JavaLangStringIClass, s);
+        return new AString(s);
     }
 
     @Override
