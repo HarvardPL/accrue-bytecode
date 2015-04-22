@@ -17,7 +17,7 @@ public final class AString {
     private FiniteSet<String> fs;
 
     public static AString makeStringTop(int maxSize) {
-        return new AString(FiniteSet.<String> makeTop(maxSize));
+        return new AString(FiniteSet.<String> getTop());
     }
 
     public static AString makeStringBottom(int maxSize) {
@@ -71,7 +71,7 @@ public final class AString {
     }
 
     public boolean upperBounds(AString that) {
-        return this.fs.upperBounds(that.fs);
+        return this.fs.containsAll(that.fs);
     }
 
     public AString concat(final AString that) {

@@ -2,7 +2,6 @@ package analysis.pointer.analyses;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.Set;
 
 import util.FiniteSet;
 import util.optional.Optional;
@@ -26,7 +25,7 @@ public class ClassInstanceKey implements InstanceKey {
     /* factories */
 
     public static ClassInstanceKey makeTop(int maxSize, InstanceKey innerIK) {
-        return new ClassInstanceKey(FiniteSet.<IClass> makeTop(maxSize), innerIK);
+        return new ClassInstanceKey(FiniteSet.<IClass> getTop(), innerIK);
     }
 
     public static ClassInstanceKey makeBottom(int maxSize, InstanceKey innerIK) {
@@ -45,15 +44,21 @@ public class ClassInstanceKey implements InstanceKey {
         return new ClassInstanceKey(c, innerIK);
     }
 
-    /* constructors */
 
-    public ClassInstanceKey(FiniteSet<IClass> reflectedTypes, InstanceKey innerIK) {
-        Optional<Set<IClass>> maybeTypes = reflectedTypes.maybeIterable();
-        if (maybeTypes.isSome()) {
-            for (IClass rType : maybeTypes.get()) {
-                assert rType != null;
+    private boolean allNonNull(FiniteSet<IClass> fs) {
+        if (!fs.isTop()) {
+            for (IClass rType : fs.getSet()) {
+                if (rType != null) {
+                    return false;
+                }
             }
         }
+        return true;
+    }
+
+    /* constructors */
+    public ClassInstanceKey(FiniteSet<IClass> reflectedTypes, InstanceKey innerIK) {
+        assert allNonNull(reflectedTypes);
         this.reflectedTypes = reflectedTypes;
         this.innerIK = innerIK;
     }

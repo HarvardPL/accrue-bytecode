@@ -53,7 +53,7 @@ public class ReflectiveHAF extends HeapAbstractionFactory {
     }
 
     public FiniteSet<IClass> getAClassTop() {
-        return FiniteSet.makeTop(this.MAX_CLASS_SET_SIZE);
+        return FiniteSet.getTop();
     }
 
     public FiniteSet<IClass> getAClassBottom() {

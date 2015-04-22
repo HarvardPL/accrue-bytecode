@@ -1,52 +1,63 @@
 package util;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
 import util.optional.Optional;
-import analysis.AnalysisUtil;
 
 import com.ibm.wala.util.functions.Function;
 
+/**
+ * This represents a set of a bounded size, and, if the size goes above that bound, it becomes a representation of the
+ * entire domain.
+ *
+ * Objects are immutable.
+ *
+ * @param <T>
+ */
 public final class FiniteSet<T> {
-    private final Optional<Set<T>> top = Optional.none();
-
+    /**
+     * The maximum size of the set. -1 if this is the object representing the top set.
+     */
     private final int maxSize;
-    private Optional<Set<T>> items;
 
-    private static <T> Set<T> makeEmptyUnderlyingSet() {
-        return AnalysisUtil.createConcurrentSet();
-    }
+    /**
+     * The items in the set. Is null if and only if this is the object representing the top set. Otherwise, the size is
+     * at most this.maxSize.
+     */
+    private final Set<T> items;
 
-    private static <T> Set<T> makeEmptyUnderlyingSet(Collection<T> t) {
-        Set<T> s = AnalysisUtil.createConcurrentSet();
-        s.addAll(t);
-        return s;
-    }
+    public static final FiniteSet<?> TOP = new FiniteSet<>(-1, null);
 
     /* factories */
-
-    public static <T> FiniteSet<T> makeBottom(int maxSize) {
-        return new FiniteSet<>(maxSize, Optional.some((Set<T>) makeEmptyUnderlyingSet()));
+    public static <T> FiniteSet<T> getTop() {
+        return (FiniteSet<T>) TOP;
     }
 
-    public static <T> FiniteSet<T> makeTop(int maxSize) {
-        return new FiniteSet<>(maxSize, Optional.<Set<T>> none());
+    public static <T> FiniteSet<T> makeBottom(int maxSize) {
+        return new FiniteSet<T>(maxSize, Collections.EMPTY_SET); // it's fine to use a hashset, since this is immutable.
     }
 
     public static <T> FiniteSet<T> makeFiniteSet(int maxSize, Collection<T> items) {
-        return new FiniteSet<>(maxSize, Optional.some(makeEmptyUnderlyingSet(items)));
+        return new FiniteSet<>(maxSize, new HashSet<>(items));
     }
 
+    /*
+     * Get rid of this method once Optional is gone...
+     */
     public static <T> FiniteSet<T> make(int maxSize, Optional<? extends Collection<T>> c) {
-        return new FiniteSet<>(maxSize, c.isSome() ? Optional.<Set<T>> some(makeEmptyUnderlyingSet(c.get()))
-                : Optional.<Set<T>> none());
+        if (c.isNone()) {
+            return getTop();
+        }
+        return makeFiniteSet(maxSize, c.get());
     }
 
     /* constructors */
-
-    private FiniteSet(int maxSize, Optional<Set<T>> items) {
+    private FiniteSet(int maxSize, Set<T> items) {
+        assert (maxSize < 0 && items == null) || (items != null && items.size() <= maxSize);
         this.maxSize = maxSize;
         this.items = items;
     }
@@ -54,52 +65,55 @@ public final class FiniteSet<T> {
     /* set operations */
 
     /**
-     * mutates @code{this} to also contain every element of @code{that}
+     * Returns a finite set representing the union this this and that.
      *
-     * @return true if set changes as a result of this call
      **/
     public FiniteSet<T> union(FiniteSet<T> that) {
+        if (this.isTop() || that.isTop()) {
+            return getTop();
+        }
+
         if (this.maxSize != that.maxSize) {
             throw new IllegalArgumentException("Cannot union finite sets of different sizes. `this` has size "
                     + this.maxSize + " while the other finite set has size " + that.maxSize);
         }
-        if (that.items.isSome() && this.items.isSome()) {
-            if (that.items.get().size() + this.items.get().size() <= this.maxSize) {
-                Set<T> s = AnalysisUtil.createConcurrentSet();
-                s.addAll(this.items.get());
-                s.addAll(that.items.get());
-                return new FiniteSet<T>(this.maxSize, Optional.some(s));
-            }
-            else {
-                return FiniteSet.makeTop(this.maxSize);
-            }
+
+        if (this.isBottom()) {
+            return that;
         }
-        else {
-            return FiniteSet.makeTop(this.maxSize);
+        if (that.isBottom()) {
+            return this;
         }
 
-    }
-
-    public Optional<Set<T>> maybeIterable() {
-        return this.items;
+        HashSet<T> union = new HashSet<>(this.items.size() + that.items.size());
+        union.addAll(this.items);
+        union.addAll(that.items);
+        if (union.size() > this.maxSize) {
+            return getTop();
+        }
+        return new FiniteSet<>(this.maxSize, union);
     }
 
     public boolean isTop() {
-        return !this.items.isSome();
+        return this == FiniteSet.TOP;
     }
 
     public boolean isBottom() {
-        return this.items.isSome() && this.items.get().isEmpty();
+        return this.items != null && this.items.isEmpty();
     }
 
-    public boolean upperBounds(FiniteSet<T> that) {
-        if (this.isTop()) {
+    /**
+     * Does this contain all of that?
+     */
+    public boolean containsAll(FiniteSet<T> that) {
+        if (this.isTop() || that.isBottom()) {
             return true;
-        } else if (that.isTop()) {
-            return false;
-        } else {
-            return this.getSet().containsAll(that.getSet());
         }
+        else if (that.isTop() || this.isBottom()) {
+            return false;
+        }
+        return this.items.containsAll(that.items);
+
     }
 
     public Set<T> getSet() {
@@ -107,7 +121,7 @@ public final class FiniteSet<T> {
             throw new RuntimeException("Cannot get set of Top");
         }
         else {
-            return this.items.get();
+            return this.items;
         }
     }
 
@@ -116,56 +130,51 @@ public final class FiniteSet<T> {
     }
 
     public <U> FiniteSet<U> map(Function<? super T, U> f) {
-        Optional<Set<U>> optionalResult;
-
-        if (this.items.isNone()) {
-            optionalResult = Optional.none();
-        } else {
-            Set<U> setResult = makeEmptyUnderlyingSet();
-            for (T item : this.items.get()) {
-                setResult.add(f.apply(item));
-            }
-            optionalResult = Optional.some(setResult);
+        if (this.isTop()) {
+            return getTop();
         }
+        HashSet<U> result = new HashSet<U>();
 
-        return new FiniteSet<>(this.maxSize, optionalResult);
+        for (T item : this.items) {
+            result.add(f.apply(item));
+        }
+        return new FiniteSet<>(this.maxSize, result);
     }
 
     public <U> FiniteSet<U> flatMap(Function<? super T, ? extends FiniteSet<U>> f) {
-        if (this.items.isSome()) {
-            Set<T> s = this.items.get();
-            Set<U> a = makeEmptyUnderlyingSet();
-            for (T t : s) {
-                FiniteSet<U> r = f.apply(t);
-                if (r.items.isSome()) {
-                    a.addAll(r.items.get());
-                }
-                else {
-                    return new FiniteSet<>(this.maxSize, Optional.<Set<U>> none());
-                }
+        if (this.isTop()) {
+            return getTop();
+        }
+        HashSet<U> result = new HashSet<U>();
+        for (T t : this.items) {
+            FiniteSet<U> r = f.apply(t);
+            if (r.isTop()) {
+                return getTop();
             }
-            return new FiniteSet<>(this.maxSize, Optional.some(a));
+            result.addAll(r.getSet());
+            if (result.size() > this.maxSize) {
+                return getTop();
+            }
         }
-        else {
-            return new FiniteSet<>(this.maxSize, Optional.<Set<U>> none());
-        }
+        return new FiniteSet<>(this.maxSize, result);
     }
 
     @Override
     public String toString() {
         if (this.isTop()) {
             return "FS(⊤)";
-        } else if (this.isBottom()) {
+        }
+        else if (this.isBottom()) {
             return "FS(⊥)";
-        } else {
-            Set<T> ts = this.items.get();
+        }
+        else {
             StringBuilder sb = new StringBuilder();
             sb.append("{");
-            Iterator<T> it = ts.iterator();
-            if (it.hasNext()) {
+            Iterator<T> it = this.items.iterator();
+            while (it.hasNext()) {
                 sb.append(stringify(it.next()));
-                while (it.hasNext()) {
-                    sb.append(", " + stringify(it.next()));
+                if (it.hasNext()) {
+                    sb.append(", ");
                 }
             }
             sb.append("}");
