@@ -46,5 +46,6 @@
 	<classpathentry exported="true" kind="lib" path="lib/JFlex.jar"/>
 	<classpathentry kind="lib" path="data"/>
 	<classpathentry kind="lib" path="lib/wala-fork.jar"/>
+	<classpathentry kind="lib" path="data/dacapo-2006-10-MR2.jar"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>
