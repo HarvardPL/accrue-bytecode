@@ -1,10 +1,13 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import types.TypeRepository;
+import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.registrar.FlowSensitiveStringVariableFactory;
@@ -572,17 +575,6 @@ public class StatementFactory {
         return s;
     }
 
-    public StringStatement localFromFormalString(StringVariable param, ReferenceVariable formal, IMethod method,
-                                                 boolean rightIsMethodSummary) {
-        assert param != null;
-        assert formal != null;
-        assert method != null;
-
-        assert stringStatementNeverCreatedBefore(new StatementKey(param, formal, method));
-
-        return new LocalFromFormalStringStatement(param, formal, method);
-    }
-
     public StringStatement fieldToLocalString(StringVariable svv, ReferenceVariable o, FieldReference f, IMethod method) {
         assert svv != null;
         assert o != null;
@@ -703,7 +695,6 @@ public class StatementFactory {
         return new StringInitStatement(callSite, method, sv);
     }
 
-
     public StringStatement stringPhiNode(IMethod method, StringVariable sv, Set<StringVariable> dependentSVs) {
         assert method != null;
         assert sv != null;
@@ -717,28 +708,14 @@ public class StatementFactory {
         return new StringPhiNode(method, sv, dependentSVs);
     }
 
-    public StringStatement escapeViaReturnStringStatement(ReferenceVariable rv, StringVariable sv, IMethod method,
-                                                          SSAReturnInstruction i) {
-        assert rv != null;
+    public StringStatement localToLocalString(IMethod method, StringVariable sv, StringVariable parameter) {
+        assert method != null;
         assert sv != null;
-        assert method != null;
+        assert parameter != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(rv, sv, method, i));
+        assert stringStatementNeverCreatedBefore(new StatementKey(sv, parameter));
 
-        return new EscapeViaReturnStringStatement(rv, sv, method);
-    }
-
-    public StringStatement escapeViaMethodStringStatement(ReferenceVariable rv, StringVariable svuse,
-                                                          StringVariable svdef, IMethod method, SSAInstruction i) {
-        assert rv != null;
-        assert svuse != null;
-        assert svdef != null;
-        assert method != null;
-        assert i != null;
-
-        assert stringStatementNeverCreatedBefore(new StatementKey(rv, svuse, svdef, method, i));
-
-        return new EscapeViaMethodStringStatement(rv, svuse, svdef, method);
+        return new LocalToLocalStringStatement(method, sv, parameter);
     }
 
     public StringStatement getPropertyCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
@@ -758,6 +735,60 @@ public class StatementFactory {
         return new GetPropertyStatement(callSite, method, declaredTarget, svresult, svarguments);
     }
 
+    public StringStatement staticOrSpecialMethodCallStringEscape(IMethod method,
+                                                                 List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
+                                                                 StringVariable returnedVariable,
+                                                                 StringVariable returnToVariable) {
+        /* NB: both returnedVariable and returnToVariable could be null. Nullness */
+        /* indicates the return value is either ignored or not String-like */
+        assert stringArgumentAndParameters != null;
+        for (OrderedPair<StringVariable, StringVariable> pair : stringArgumentAndParameters) {
+            assert pair != null;
+            assert pair.fst() != null;
+            assert pair.snd() != null;
+        }
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(method,
+                                                                  stringArgumentAndParameters,
+                                                                  returnedVariable,
+                                                                  returnToVariable));
+
+        return new StaticOrSpecialMethodCallStringEscape(method,
+                                                         stringArgumentAndParameters,
+                                                         returnedVariable,
+                                                         returnToVariable);
+    }
+
+    public StringStatement virtualMethodCallStringEscape(IMethod method,
+                                                         ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters,
+                                                         StringVariable returnToVariable,
+                                                         MethodReference declaredTarget, ReferenceVariable receiver,
+                                                         TypeRepository types) {
+        /* NB: returnToVariable could be null. Nullness indicates the return */
+        /* value is either ignored or not String-like */
+        assert stringArgumentAndParameters != null;
+        for (OrderedPair<StringVariable, Integer> pair : stringArgumentAndParameters) {
+            assert pair != null;
+            assert pair.fst() != null;
+            assert pair.snd() != null;
+        }
+        assert declaredTarget != null;
+        assert receiver != null;
+        assert types != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(method,
+                                                                  stringArgumentAndParameters,
+                                                                  returnToVariable,
+                                                                  declaredTarget));
+
+        return new VirtualMethodCallStringEscape(method,
+                                                 stringArgumentAndParameters,
+                                                 returnToVariable,
+                                                 declaredTarget,
+                                                 receiver,
+                                                 types);
+    }
+
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                          ReferenceVariable result, List<StringVariable> actuals) {
         assert callSite != null;
@@ -765,12 +796,7 @@ public class StatementFactory {
         assert caller != null;
         assert actuals != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(callSite,
-                                                                  caller,
-                                                                  callee,
-                                                                  result,
-                                                                  actuals,
-                                                                  null));
+        assert stringStatementNeverCreatedBefore(new StatementKey(callSite, caller, callee, result, actuals, null));
 
         return new ForNameCallStatement(callSite, caller, callee, result, actuals);
 

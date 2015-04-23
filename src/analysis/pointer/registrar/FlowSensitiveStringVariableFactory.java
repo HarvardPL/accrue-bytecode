@@ -96,9 +96,22 @@ public final class FlowSensitiveStringVariableFactory {
 
     }
 
-    public StringVariable getOrCreateParamDef(int varNum, IMethod m, TypeRepository types,
-                                              @SuppressWarnings("unused") PrettyPrinter pp) {
+    public StringVariable getOrCreateParamDef(int varNum, IMethod m, TypeRepository types) {
         return getOrCreateLocalWithSubscript(varNum, initialSubscript, m, types);
+    }
+
+    @SuppressWarnings("static-method")
+    public StringVariable getOrCreateMethodReturn(IMethod method) {
+        if (method.getReturnType().equals(TypeReference.JavaLangString)) {
+            return StringVariableFactory.makeMethodReturnString(method);
+        } else if (method.getReturnType().equals(TypeReference.JavaLangStringBuilder)) {
+            return StringVariableFactory.makeMethodReturnStringBuilder(method);
+        } else {
+            throw new RuntimeException("FlowSensitiveStringVariableFactory can only create "
+                    + "StringVariables for the return values of methods that have return "
+                    + "type equal to String or to " + "StringBuilder. Given method, " + method
+                    + ", has return type: " + method.getReturnType() + ".");
+        }
     }
 
     private static Integer getOrDefaultSensitizer(Map<Integer, Integer> m, Integer a) {
@@ -121,4 +134,5 @@ public final class FlowSensitiveStringVariableFactory {
     public boolean isStringLikeMethodInvocation(SSAInvokeInstruction i) {
         return StringAndReflectiveUtil.isStringMethod(i.getDeclaredTarget());
     }
+
 }

@@ -9,7 +9,6 @@ import util.intmap.SparseIntMap;
 import util.intset.IntSetUnion;
 import util.optional.Optional;
 import analysis.pointer.analyses.AString;
-import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
@@ -193,17 +192,6 @@ public final class GraphDelta implements PointsToIterable {
 
     public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
         return this.scd.getStatementsNeededByStringUpdates();
-    }
-
-    @Override
-    public AString astringForPointsToGraphNode(PointsToGraphNode n, StmtAndContext originator) {
-        AString result = ((ReflectiveHAF) this.g.getHaf()).getAStringBottom();
-
-        for (InstanceKey ik : this.pointsToIterable(n, originator)) {
-            result.join(this.g.astringForInstanceKey(ik));
-        }
-
-        return result;
     }
 
     public StringConstraintDelta getStringConstraintDelta() {

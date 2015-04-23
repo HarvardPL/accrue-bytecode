@@ -27,12 +27,10 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
-import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -319,18 +317,6 @@ public final class PointsToGraph implements PointsToIterable {
             collapseCycles(toCollapse, delta);
         }
         return delta;
-    }
-
-    public GraphDelta addEdgeToAString(PointsToGraphNode n, StringVariableReplica svr, AllocSiteNode allocationSite,
-                                       Context context, StmtAndContext originator) {
-        if (this.sc.isActive(svr)
-                && !this.astringForPointsToGraphNode(n, originator).upperBounds(this.getAStringFor(svr))) {
-            return this.addEdge(n,
-                                ((ReflectiveHAF) haf).recordStringlike(this.getAStringFor(svr), allocationSite, context));
-        }
-        else {
-            return new GraphDelta(this);
-        }
     }
 
     /**
@@ -1390,26 +1376,6 @@ public final class PointsToGraph implements PointsToIterable {
         Logger.println("[PointsToGraph] " + this.getAStringFor(svr1) + " = " + svr1 + " ⊒ " + svr2 + " = "
                 + this.getAStringFor(svr2));
         return new GraphDelta(this, this.sc.upperBounds(svr1, svr2));
-    }
-
-    AString astringForInstanceKey(InstanceKey ik) {
-        if (ik instanceof StringInstanceKey) {
-            return ((StringInstanceKey) ik).getAString();
-        }
-        else {
-            return ((ReflectiveHAF) haf).getAStringBottom();
-        }
-    }
-
-    @Override
-    public AString astringForPointsToGraphNode(PointsToGraphNode n, StmtAndContext originator) {
-        AString result = ((ReflectiveHAF) haf).getAStringBottom();
-
-        for (InstanceKey ik : this.pointsToIterable(n, originator)) {
-            result.join(this.astringForInstanceKey(ik));
-        }
-
-        return result;
     }
 
     public void ikDependsOnStringVariable(InstanceKey newIK, StringVariableReplica svr) {

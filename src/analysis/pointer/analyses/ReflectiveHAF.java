@@ -36,9 +36,6 @@ public class ReflectiveHAF extends HeapAbstractionFactory {
         if (receiver instanceof ClassInstanceKey) {
             return wrappedHAF.merge(callSite, ((ClassInstanceKey) receiver).getInnerIK(), callerContext);
         }
-        else if (receiver instanceof StringInstanceKey) {
-            return wrappedHAF.merge(callSite, ((StringInstanceKey) receiver).getInnerIK(), callerContext);
-        }
         else {
             return wrappedHAF.merge(callSite, receiver, callerContext);
         }
@@ -46,10 +43,6 @@ public class ReflectiveHAF extends HeapAbstractionFactory {
 
     public InstanceKey recordReflective(FiniteSet<IClass> classes, AllocSiteNode allocationSite, Context context) {
         return ClassInstanceKey.make(classes, this.wrappedHAF.record(allocationSite, context));
-    }
-
-    public InstanceKey recordStringlike(AString shat, AllocSiteNode allocationSite, Context context) {
-        return StringInstanceKey.make(shat, this.wrappedHAF.record(allocationSite, context));
     }
 
     public FiniteSet<IClass> getAClassTop() {

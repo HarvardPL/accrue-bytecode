@@ -19,6 +19,4 @@ public interface PointsToIterable {
      */
     public Optional<AString> getAStringUpdatesFor(StringVariableReplica x);
 
-    public abstract AString astringForPointsToGraphNode(PointsToGraphNode n, StmtAndContext originator);
-
 }

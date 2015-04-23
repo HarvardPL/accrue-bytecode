@@ -61,8 +61,6 @@ public class StringAndReflectiveUtil {
     private static final IMethod stringInitMethod = getIMethod(JavaLangStringTypeReference,
                                                                MethodReference.initSelector);
 
-    public static final IClass stringIClass = getIClass("Ljava/lang/StringBuilder");
-
     private static final TypeReference JavaLangSystemTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                 TypeName.string2TypeName("Ljava/lang/System"));
     private static final IMethod systemGetProperty1IMethod = getIMethod(JavaLangSystemTypeReference,
