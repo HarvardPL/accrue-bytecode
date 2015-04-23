@@ -674,17 +674,6 @@ public class StatementFactory {
         return new LocalToStaticFieldStringStatement(svf, svv, method);
     }
 
-    public StringStatement returnString(StringVariable svv, ReferenceVariable summary, IMethod method, SSAInstruction i) {
-        assert svv != null;
-        assert summary != null;
-        assert method != null;
-        assert i != null;
-
-        assert stringStatementNeverCreatedBefore(new StatementKey(svv, summary, method, i));
-
-        return new ReturnStringStatement(svv, summary, method);
-    }
-
     public StringStatement stringInit(CallSiteReference callSite, IMethod method, StringVariable sv) {
         assert callSite != null;
         assert method != null;

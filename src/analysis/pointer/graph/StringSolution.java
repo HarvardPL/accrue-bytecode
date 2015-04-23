@@ -57,7 +57,7 @@ public class StringSolution {
         }
     }
 
-    public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
+    public StringSolutionDelta joinAt(StringVariableReplica svr, AString shat) {
         if (this.stringDependencies.isActive(svr)) {
             // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
             AString current = this.map.get(svr);
@@ -65,7 +65,7 @@ public class StringSolution {
                 AString existing = this.map.putIfAbsent(svr, shat);
                 if (existing == null) {
                     // we definitely updated.
-                    return StringConstraintDelta.makeWithNeedUses(this, svr);
+                    return StringSolutionDelta.makeWithNeedUses(this, svr);
                 }
                 // someone beat us to it
                 current = existing;
@@ -75,12 +75,12 @@ public class StringSolution {
                 AString newval = current.join(shat);
                 if (newval.equals(current)) {
                     // We didn't change the AString for svr.
-                    return StringConstraintDelta.makeEmpty(this);
+                    return StringSolutionDelta.makeEmpty(this);
                 }
                 // try to change it
                 if (this.map.replace(svr, current, newval)) {
                     // We successfully changed it!
-                    return StringConstraintDelta.makeWithNeedUses(this, svr);
+                    return StringSolutionDelta.makeWithNeedUses(this, svr);
                 }
 
                 // someone else snuck in. Try again.
@@ -89,48 +89,35 @@ public class StringSolution {
         }
         else {
             Logger.println("[joinAt] Inactive variable: " + svr);
-            return StringConstraintDelta.makeEmpty(this);
+            return StringSolutionDelta.makeEmpty(this);
         }
     }
 
-    private AString getOrInitialize(StringVariableReplica svr, AString shat) {
-        AString current = this.map.get(svr);
-        if (current == null) {
-            current = shat;
-            AString existing = this.map.putIfAbsent(svr, current);
-            if (existing != null) {
-                // someone beat us to it
-                current = existing;
-            }
-        }
-        return current;
-    }
-
-    public StringConstraintDelta upperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
+    public StringSolutionDelta upperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
         if (this.stringDependencies.isActive(svr1)) {
             if (this.map.containsKey(svr2)) {
                 return this.joinAt(svr1, this.map.get(svr2));
             }
             else {
-                return StringConstraintDelta.makeEmpty(this);
+                return StringSolutionDelta.makeEmpty(this);
             }
         }
         else {
-            return StringConstraintDelta.makeEmpty(this);
+            return StringSolutionDelta.makeEmpty(this);
         }
     }
 
-    public StringConstraintDelta recordDependency(StringVariableReplica x, StringVariableReplica y) {
-        return StringConstraintDelta.makeWithNeedDefs(this, this.stringDependencies.recordDependency(x, y));
+    public StringSolutionDelta recordDependency(StringVariableReplica x, StringVariableReplica y) {
+        return StringSolutionDelta.makeWithNeedDefs(this, this.stringDependencies.recordDependency(x, y));
     }
 
-    public StringConstraintDelta activate(StringVariableReplica x) {
+    public StringSolutionDelta activate(StringVariableReplica x) {
         Set<StringVariableReplica> activatedSVRs = this.stringDependencies.activate(x);
         if (activatedSVRs.isEmpty()) {
-            return StringConstraintDelta.makeEmpty(this);
+            return StringSolutionDelta.makeEmpty(this);
         }
         else {
-            return StringConstraintDelta.makeWithNeedDefs(this, activatedSVRs);
+            return StringSolutionDelta.makeWithNeedDefs(this, activatedSVRs);
         }
     }
 

@@ -27,7 +27,7 @@ import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
  */
 public final class GraphDelta implements PointsToIterable {
     private final PointsToGraph g;
-    private final StringConstraintDelta scd;
+    private final StringSolutionDelta scd;
     /**
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
      * ints)
@@ -36,13 +36,13 @@ public final class GraphDelta implements PointsToIterable {
 
     public GraphDelta(PointsToGraph g) {
         this.g = g;
-        this.scd = StringConstraintDelta.makeEmpty(this.g.getStringConstraints());
+        this.scd = StringSolutionDelta.makeEmpty(this.g.getStringConstraints());
         // Map doesn't need to be thread safe, since when it is being modified it is thread local
         // and when it is shared, it is read only.
         this.delta = new SparseIntMap<MutableIntSet>();
     }
 
-    public GraphDelta(PointsToGraph g, StringConstraintDelta scd) {
+    public GraphDelta(PointsToGraph g, StringSolutionDelta scd) {
         this.g = g;
         this.scd = scd;
         // Map doesn't need to be thread safe, since when it is being modified it is thread local
@@ -194,7 +194,7 @@ public final class GraphDelta implements PointsToIterable {
         return this.scd.getStatementsNeededByStringUpdates();
     }
 
-    public StringConstraintDelta getStringConstraintDelta() {
+    public StringSolutionDelta getStringConstraintDelta() {
         return this.scd;
     }
 
