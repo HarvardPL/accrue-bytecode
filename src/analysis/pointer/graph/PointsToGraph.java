@@ -22,7 +22,6 @@ import util.intmap.IntMap;
 import util.intmap.ReadOnlyConcurrentIntMap;
 import util.intmap.SparseIntMap;
 import util.intset.EmptyIntSet;
-import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -188,7 +187,7 @@ public final class PointsToGraph implements PointsToIterable {
 
         this.haf = haf;
 
-        this.sc = StringSolution.make((ReflectiveHAF) haf);
+        this.sc = StringSolution.make((ReflectiveHAF) haf, depRecorder);
 
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
@@ -1389,8 +1388,8 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     @Override
-    public Optional<AString> getAStringUpdatesFor(StringSolutionVariable x) {
-        return Optional.some(this.sc.getAStringFor(x));
+    public AString getAStringUpdatesFor(StringSolutionVariable x) {
+        return this.sc.getAStringFor(x);
     }
 
     public AString getAStringFor(StringSolutionVariable x) {
@@ -1401,9 +1400,9 @@ public final class PointsToGraph implements PointsToIterable {
         this.sc.recordStringStatementUseDependency(x, s);
     }
 
-    public GraphDelta recordStringSolutionVariableDependency(StringSolutionVariable x, StringSolutionVariable y) {
-        return new GraphDelta(this, this.sc.recordDependency(x, y));
-    }
+    //    public GraphDelta recordStringSolutionVariableDependency(StringSolutionVariable x, StringSolutionVariable y) {
+    //        return new GraphDelta(this, this.sc.recordDependency(x, y));
+    //    }
 
     public void recordStringStatementDefineDependency(StringSolutionVariable x, StmtAndContext s) {
         this.sc.recordStringStatementDefineDependency(x, s);
@@ -1452,8 +1451,8 @@ public final class PointsToGraph implements PointsToIterable {
         return minv;
     }
 
-    public void printSVRDependencyTree(StringSolutionVariable svr) {
-        this.sc.printSVRDependencyTree(svr);
-    }
+    //    public void printSVRDependencyTree(StringSolutionVariable svr) {
+    //        this.sc.printSVRDependencyTree(svr);
+    //    }
 
 }

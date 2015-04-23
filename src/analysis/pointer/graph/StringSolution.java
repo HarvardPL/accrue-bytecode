@@ -62,7 +62,9 @@ public class StringSolution {
                 AString existing = this.map.putIfAbsent(svr, shat);
                 if (existing == null) {
                     // we definitely updated.
-                    return StringSolutionDelta.makeWithNeedUses(this, svr);
+                    StringSolutionDelta d = StringSolutionDelta.makeEmpty(this);
+                    d.addUpdated(svr);
+                    return d;
                 }
                 // someone beat us to it
                 current = existing;
@@ -77,7 +79,9 @@ public class StringSolution {
                 // try to change it
                 if (this.map.replace(svr, current, newval)) {
                     // We successfully changed it!
-                    return StringSolutionDelta.makeWithNeedUses(this, svr);
+                    StringSolutionDelta d = StringSolutionDelta.makeEmpty(this);
+                    d.addUpdated(svr);
+                    return d;
                 }
 
                 // someone else snuck in. Try again.
@@ -104,15 +108,16 @@ public class StringSolution {
         }
     }
 
-    public StringSolutionDelta recordDependency(StringSolutionVariable x, StringSolutionVariable y) {
-        return StringSolutionDelta.makeWithNeedDefs(this, this.depRecorder.recordDependency(x, y));
-    }
+    //    public StringSolutionDelta recordDependency(StringSolutionVariable x, StringSolutionVariable y) {
+    //        return StringSolutionDelta.makeWithNeedDefs(this, this.depRecorder.recordDependency(x, y));
+    //    }
 
     public StringSolutionDelta activate(StringSolutionVariable x) {
+        StringSolutionDelta d = StringSolutionDelta.makeEmpty(this);
         if (this.active.add(x)) {
-            return StringSolutionDelta.newlyActivated(this, x);
+            d.addNewlyActivated(x);
         }
-        return StringSolutionDelta.makeEmpty(this);
+        return d;
     }
 
     public boolean isActive(StringSolutionVariable x) {

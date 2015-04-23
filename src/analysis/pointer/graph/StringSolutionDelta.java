@@ -17,21 +17,9 @@ public class StringSolutionDelta {
         return new StringSolutionDelta(sc);
     }
 
-    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, StringSolutionVariable updatedVar) {
-        StringSolutionDelta d = new StringSolutionDelta(sc);
-        d.addUpdated(updatedVar);
-        return d;
-    }
-
     public void addUpdated(StringSolutionVariable updatedVar) {
         this.updated.add(updatedVar);
 
-    }
-
-    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, StringSolutionVariable newlyActivated) {
-        StringSolutionDelta d = new StringSolutionDelta(sc);
-        d.addNewlyActivated(newlyActivated);
-        return d;
     }
 
     public void addNewlyActivated(StringSolutionVariable newlyActivatedVar) {

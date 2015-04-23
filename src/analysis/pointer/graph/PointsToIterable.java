@@ -1,6 +1,5 @@
 package analysis.pointer.graph;
 
-import util.optional.Optional;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
@@ -17,6 +16,6 @@ public interface PointsToIterable {
      * @param x
      * @return if there is "new information", then it returns Optional.some(theNewInformation)
      */
-    public Optional<AString> getAStringUpdatesFor(StringSolutionVariable x);
+    public AString getAStringUpdatesFor(StringSolutionVariable x);
 
 }

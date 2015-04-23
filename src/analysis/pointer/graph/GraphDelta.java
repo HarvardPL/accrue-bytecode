@@ -2,12 +2,10 @@ package analysis.pointer.graph;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Set;
 
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import util.intset.IntSetUnion;
-import util.optional.Optional;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
@@ -186,13 +184,13 @@ public final class GraphDelta implements PointsToIterable {
     }
 
     @Override
-    public Optional<AString> getAStringUpdatesFor(StringSolutionVariable svr) {
+    public AString getAStringUpdatesFor(StringSolutionVariable svr) {
         return this.scd.getAStringFor(svr);
     }
 
-    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
-        return this.scd.getStatementsNeededByStringUpdates();
-    }
+    //    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
+    //        return this.scd.getStatementsNeededByStringUpdates();
+    //    }
 
     public StringSolutionDelta getStringConstraintDelta() {
         return this.scd;
