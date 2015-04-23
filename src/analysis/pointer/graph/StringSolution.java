@@ -106,6 +106,20 @@ public class StringSolution {
         return current;
     }
 
+    public StringConstraintDelta upperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
+        if (this.stringDependencies.isActive(svr1)) {
+            if (this.map.containsKey(svr2)) {
+                return this.joinAt(svr1, this.map.get(svr2));
+            }
+            else {
+                return StringConstraintDelta.makeEmpty(this);
+            }
+        }
+        else {
+            return StringConstraintDelta.makeEmpty(this);
+        }
+    }
+
     public StringConstraintDelta recordDependency(StringVariableReplica x, StringVariableReplica y) {
         return StringConstraintDelta.makeWithNeedDefs(this, this.stringDependencies.recordDependency(x, y));
     }
