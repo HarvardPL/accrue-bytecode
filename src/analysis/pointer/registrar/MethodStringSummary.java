@@ -29,10 +29,10 @@ public class MethodStringSummary {
         List<StringVariable> formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); ++i) {
             if (StringAndReflectiveUtil.isStringType(method.getParameterType(i))) {
-                formals.set(i, stringVariableFactory.getOrCreateParamDef(ir.getParameter(i), method, types));
+                formals.add(stringVariableFactory.getOrCreateParamDef(ir.getParameter(i), method, types));
             }
             else {
-                formals.set(i, null);
+                formals.add(null);
             }
         }
 
