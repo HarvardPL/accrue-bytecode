@@ -697,16 +697,6 @@ public class StatementFactory {
         return new StringPhiNode(method, sv, dependentSVs);
     }
 
-    public StringStatement localToLocalString(IMethod method, StringVariable sv, StringVariable parameter) {
-        assert method != null;
-        assert sv != null;
-        assert parameter != null;
-
-        assert stringStatementNeverCreatedBefore(new StatementKey(sv, parameter));
-
-        return new LocalToLocalStringStatement(method, sv, parameter);
-    }
-
     public StringStatement getPropertyCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
                                            StringVariable svresult, List<StringVariable> svarguments) {
         assert callSite != null;
