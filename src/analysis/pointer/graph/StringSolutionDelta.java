@@ -1,98 +1,100 @@
 package analysis.pointer.graph;
 
+import java.util.HashSet;
 import java.util.Set;
 
-import util.optional.Optional;
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
-import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
 public class StringSolutionDelta {
 
     private final StringSolution sc;
-    private Set<StringSolutionVariable> needUses;
-    private Set<StringSolutionVariable> needDefs;
+    private Set<StringSolutionVariable> newlyActivated;
+    private Set<StringSolutionVariable> updated;
 
     /* Factory Methods */
 
     public static final StringSolutionDelta makeEmpty(StringSolution sc) {
-        return new StringSolutionDelta(sc,
-                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet(),
-                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
+        return new StringSolutionDelta(sc);
     }
 
-    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, StringSolutionVariable needsUses) {
-        return new StringSolutionDelta(sc,
-                                       AnalysisUtil.createConcurrentSingletonSet(needsUses),
-                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
+    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, StringSolutionVariable updatedVar) {
+        StringSolutionDelta d = new StringSolutionDelta(sc);
+        d.addUpdated(updatedVar);
+        return d;
     }
 
-    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, StringSolutionVariable needsDefs) {
-        return new StringSolutionDelta(sc,
-                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet(),
-                                       AnalysisUtil.createConcurrentSingletonSet(needsDefs));
+    public void addUpdated(StringSolutionVariable updatedVar) {
+        this.updated.add(updatedVar);
+
     }
 
-    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, Set<StringSolutionVariable> needUses) {
-        return new StringSolutionDelta(sc, needUses, AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
+    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, StringSolutionVariable newlyActivated) {
+        StringSolutionDelta d = new StringSolutionDelta(sc);
+        d.addNewlyActivated(newlyActivated);
+        return d;
     }
 
-    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, Set<StringSolutionVariable> needDefs) {
-        return new StringSolutionDelta(sc, AnalysisUtil.<StringSolutionVariable> createConcurrentSet(), needDefs);
+    public void addNewlyActivated(StringSolutionVariable newlyActivatedVar) {
+        this.newlyActivated.add(newlyActivatedVar);
     }
 
-    public static final StringSolutionDelta make(StringSolution sc, Set<StringSolutionVariable> needUses,
-                                                 Set<StringSolutionVariable> needDefs) {
-        return new StringSolutionDelta(sc, needUses, needDefs);
-    }
+    //    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, Set<StringSolutionVariable> needUses) {
+    //        return new StringSolutionDelta(sc, needUses, AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
+    //    }
+    //
+    //    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, Set<StringSolutionVariable> needDefs) {
+    //        return new StringSolutionDelta(sc, AnalysisUtil.<StringSolutionVariable> createConcurrentSet(), needDefs);
+    //    }
+
+    //    public static final StringSolutionDelta make(StringSolution sc, Set<StringSolutionVariable> needUses,
+    //                                                 Set<StringSolutionVariable> needDefs) {
+    //        return new StringSolutionDelta(sc, needUses, needDefs);
+    //    }
 
     /* Constructors */
 
-    public StringSolutionDelta(StringSolution sc, Set<StringSolutionVariable> needUses,
-                               Set<StringSolutionVariable> needDefs) {
+    public StringSolutionDelta(StringSolution sc) {
         this.sc = sc;
-        this.needUses = needUses;
-        this.needDefs = needDefs;
+        this.newlyActivated = new HashSet<>();
+        this.updated = new HashSet<>();
     }
 
     /* Logic */
 
-    public Optional<AString> getAStringFor(StringSolutionVariable svr) {
-        if (this.needUses.contains(svr)) {
-            return Optional.some(this.sc.getAStringFor(svr));
+    public AString getAStringFor(StringSolutionVariable svr) {
+        if (this.updated.contains(svr)) {
+            return this.sc.getAStringFor(svr);
         }
-        else {
-            return Optional.none();
-        }
+        return null;
     }
 
     public boolean isEmpty() {
-        return this.needUses.isEmpty() && this.needDefs.isEmpty();
+        return this.newlyActivated.isEmpty() && this.updated.isEmpty();
     }
 
     public void combine(StringSolutionDelta that) {
         assert this.sc == that.sc;
-        this.needUses.addAll(that.needUses);
-        this.needDefs.addAll(that.needDefs);
+        this.newlyActivated.addAll(that.newlyActivated);
+        this.updated.addAll(that.updated);
     }
 
-    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
-        Set<StmtAndContext> s = AnalysisUtil.createConcurrentSet();
-
-        for (StringSolutionVariable v : this.needDefs) {
-            s.addAll(this.sc.getDefinedBy(v));
-        }
-
-        for (StringSolutionVariable v : this.needUses) {
-            s.addAll(this.sc.getUsedBy(v));
-        }
-
-        return s;
-    }
+    //    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
+    //        Set<StmtAndContext> s = AnalysisUtil.createConcurrentSet();
+    //
+    //        for (StringSolutionVariable v : this.needDefs) {
+    //            s.addAll(this.sc.getDefinedBy(v));
+    //        }
+    //
+    //        for (StringSolutionVariable v : this.needUses) {
+    //            s.addAll(this.sc.getUsedBy(v));
+    //        }
+    //
+    //        return s;
+    //    }
 
     @Override
     public String toString() {
-        return "StringConstraintDelta [needDefs=" + this.needDefs + ", needUses=" + this.needUses + "]";
+        return "StringConstraintDelta [newlyActivated=" + this.newlyActivated + ", updated=" + this.updated + "]";
     }
 
 }

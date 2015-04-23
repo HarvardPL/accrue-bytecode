@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import types.TypeRepository;
-import util.Triplet;
+import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
@@ -18,6 +18,11 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
+/**
+ * A FlowSensitiveStringVariableFactory is responsible for creating StringVariables for a particular IR. There is one
+ * FlowSensitiveStringVariableFactory per IR. The FlowSensitiveStringVariableFactory keeps track of which StringVariable
+ * is used to represent the current abstract string value of StringBuilders at various program points.
+ */
 public final class FlowSensitiveStringVariableFactory {
 
     /* This class expects the `initialSubscript` to be equal to the subscript
@@ -25,53 +30,55 @@ public final class FlowSensitiveStringVariableFactory {
      * i.e., before any instructions are ready */
     private static final int initialSubscript = 0;
 
+    private final IMethod method;
+    private final TypeRepository typeRepo;
     private final Map<SSAInstruction, Map<Integer, Integer>> useSensitizerAtInstruction;
     private final Map<SSAInstruction, Map<Integer, Integer>> defSensitizerAtInstruction;
-    private final Map<Triplet<IMethod, Integer, Integer>, StringVariable> localsCache;
+    private final Map<OrderedPair<Integer, Integer>, StringVariable> localsCache;
     private final Map<IField, StringVariable> staticFieldCache;
 
     /* Factory Methods */
 
-    public static FlowSensitiveStringVariableFactory make(Map<SSAInstruction, Map<Integer, Integer>> defSensitizerAtInstruction,
+    public static FlowSensitiveStringVariableFactory make(IMethod method, TypeRepository types, Map<SSAInstruction, Map<Integer, Integer>> defSensitizerAtInstruction,
                                                           Map<SSAInstruction, Map<Integer, Integer>> useSensitizerAtInstruction) {
-        return new FlowSensitiveStringVariableFactory(defSensitizerAtInstruction, useSensitizerAtInstruction);
+        return new FlowSensitiveStringVariableFactory(method, types, defSensitizerAtInstruction, useSensitizerAtInstruction);
     }
 
     /* Constructors */
 
-    private FlowSensitiveStringVariableFactory(Map<SSAInstruction, Map<Integer, Integer>> defSensitizerAtInstruction,
+    private FlowSensitiveStringVariableFactory(IMethod method, TypeRepository typeRepo, Map<SSAInstruction, Map<Integer, Integer>> defSensitizerAtInstruction,
                                                Map<SSAInstruction, Map<Integer, Integer>> useSensitizerAtInstruction) {
+        this.method = method;
+        this.typeRepo = typeRepo;
         this.defSensitizerAtInstruction = defSensitizerAtInstruction;
         this.useSensitizerAtInstruction = useSensitizerAtInstruction;
-        localsCache = new HashMap<>();
-        staticFieldCache = new HashMap<>();
+        this.localsCache = new HashMap<>();
+        this.staticFieldCache = new HashMap<>();
     }
 
     /* Logic */
 
-    public StringVariable getOrCreateLocalDef(SSAInstruction i, int defNum, IMethod method, TypeRepository types, PrettyPrinter pp) {
-        return getOrCreateLocal(this.defSensitizerAtInstruction.get(i), defNum, method, types, pp);
+    public StringVariable getOrCreateLocalDef(SSAInstruction i, int defNum, PrettyPrinter pp) {
+        return getOrCreateLocal(this.defSensitizerAtInstruction.get(i), defNum, pp);
     }
 
-    public StringVariable getOrCreateLocalUse(SSAInstruction i, int useNum, IMethod method, TypeRepository types,
-                                              PrettyPrinter pp) {
-        return getOrCreateLocal(this.useSensitizerAtInstruction.get(i), useNum, method, types, pp);
+    public StringVariable getOrCreateLocalUse(SSAInstruction i, int useNum, PrettyPrinter pp) {
+        return getOrCreateLocal(this.useSensitizerAtInstruction.get(i), useNum, pp);
     }
 
-    private StringVariable getOrCreateLocal(Map<Integer, Integer> sensitizer, Integer varNum, IMethod m,
-                                            TypeRepository types, @SuppressWarnings("unused") PrettyPrinter pp) {
-        return getOrCreateLocalWithSubscript(varNum, getOrDefaultSensitizer(sensitizer, varNum), m, types);
+    private StringVariable getOrCreateLocal(Map<Integer, Integer> sensitizer, Integer varNum,
+                                            @SuppressWarnings("unused") PrettyPrinter pp) {
+        return getOrCreateLocalWithSubscript(varNum, getOrDefaultSensitizer(sensitizer, varNum));
     }
 
-    public StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript, IMethod m,
-                                                        TypeRepository types) {
-        StringVariable maybeValue = localsCache.get(new Triplet<>(m, varNum, sensitizingSubscript));
+    public StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript) {
+        StringVariable maybeValue = localsCache.get(new OrderedPair<>(varNum, sensitizingSubscript));
         if (maybeValue == null) {
-            if (types.getType(varNum).equals(TypeReference.JavaLangString)) {
-                return StringVariableFactory.makeLocalString(m, varNum, sensitizingSubscript);
+            if (typeRepo.getType(varNum).equals(TypeReference.JavaLangString)) {
+                return StringVariableFactory.makeLocalString(method, varNum, sensitizingSubscript);
             }
-            else if (types.getType(varNum).equals(TypeReference.JavaLangStringBuilder)) {
-                return StringVariableFactory.makeLocalStringBuilder(m, varNum, sensitizingSubscript);
+            else if (typeRepo.getType(varNum).equals(TypeReference.JavaLangStringBuilder)) {
+                return StringVariableFactory.makeLocalStringBuilder(method, varNum, sensitizingSubscript);
             }
             else {
                 throw new RuntimeException("String variables may only be created for objects of class String or StringBuilder");
@@ -96,8 +103,8 @@ public final class FlowSensitiveStringVariableFactory {
 
     }
 
-    public StringVariable getOrCreateParamDef(int varNum, IMethod m, TypeRepository types) {
-        return getOrCreateLocalWithSubscript(varNum, initialSubscript, m, types);
+    public StringVariable getOrCreateParamDef(int varNum) {
+        return getOrCreateLocalWithSubscript(varNum, initialSubscript);
     }
 
     @SuppressWarnings("static-method")

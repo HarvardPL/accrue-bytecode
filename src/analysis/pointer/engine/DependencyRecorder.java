@@ -1,6 +1,7 @@
 package analysis.pointer.engine;
 
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
+import analysis.pointer.graph.StringSolutionVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -38,5 +39,20 @@ public interface DependencyRecorder {
      */
     void recordNewContext(IMethod callee, Context calleeContext);
 
+    /**
+     * Record that processing of sac reads StringSolutionVariable v
+     *
+     * @param v
+     * @param sac
+     */
+    void recordRead(StringSolutionVariable v, StmtAndContext sac);
+
+    /**
+     * Record that processing of sac (will) write (i.e., update) StringSolutionVariable v
+     *
+     * @param v
+     * @param sac
+     */
+    void recordWrite(StringSolutionVariable v, StmtAndContext sac);
 
 }

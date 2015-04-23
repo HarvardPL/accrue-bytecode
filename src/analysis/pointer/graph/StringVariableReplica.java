@@ -11,6 +11,7 @@ public class StringVariableReplica implements PointsToGraphNode, StringSolutionV
     private final StringVariable local;
 
     public StringVariableReplica(Context context, StringVariable local) {
+        assert local != null && context != null;
         this.context = context;
         this.local = local;
     }

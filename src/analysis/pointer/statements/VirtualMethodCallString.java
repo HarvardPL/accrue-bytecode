@@ -3,7 +3,6 @@ package analysis.pointer.statements;
 import java.util.ArrayList;
 import java.util.List;
 
-import types.TypeRepository;
 import util.Logger;
 import util.OrderedPair;
 import analysis.AnalysisUtil;
@@ -27,24 +26,22 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
-public class VirtualMethodCallStringEscape extends MethodCallStringEscape {
+public class VirtualMethodCallString extends MethodCallString {
 
     private final List<OrderedPair<StringVariable, Integer>> stringArgumentAndParamNums;
-    private final StringVariable returnToVariable;
+    private final StringVariable actualReturn;
     private final MethodReference declaredTarget;
     private final ReferenceVariable receiver;
-    private final TypeRepository types;
 
-    public VirtualMethodCallStringEscape(IMethod method,
+    public VirtualMethodCallString(IMethod method,
                                          ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParamNums,
                                          StringVariable returnToVariable, MethodReference declaredTarget,
-                                         ReferenceVariable receiver, TypeRepository types) {
+                                         ReferenceVariable receiver) {
         super(method);
         this.stringArgumentAndParamNums = stringArgumentAndParamNums;
-        this.returnToVariable = returnToVariable;
+        this.actualReturn = returnToVariable;
         this.declaredTarget = declaredTarget;
         this.receiver = receiver;
-        this.types = types;
     }
 
     @Override
@@ -60,7 +57,7 @@ public class VirtualMethodCallStringEscape extends MethodCallStringEscape {
 
         for (InstanceKey ik : iks) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
-            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee, this.types);
+            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
             ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
             for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
@@ -70,7 +67,7 @@ public class VirtualMethodCallStringEscape extends MethodCallStringEscape {
                 stringArgumentAndParameters.add(newpair);
             }
 
-            newDelta.combine(this.processCall(this.returnToVariable,
+            newDelta.combine(this.processCall(this.actualReturn,
                                               summary.getRet(),
                                               stringArgumentAndParameters,
                                               context,
@@ -107,8 +104,8 @@ public class VirtualMethodCallStringEscape extends MethodCallStringEscape {
     @Override
     public String toString() {
         return "VirtualMethodCallStringEscape [stringArgumentAndParamNums=" + stringArgumentAndParamNums
-                + ", returnToVariable=" + returnToVariable + ", declaredTarget=" + declaredTarget + ", receiver="
-                + receiver + ", types=" + types + "]";
+                + ", returnToVariable=" + actualReturn + ", declaredTarget=" + declaredTarget + ", receiver="
+                + receiver + "]";
     }
 
 }

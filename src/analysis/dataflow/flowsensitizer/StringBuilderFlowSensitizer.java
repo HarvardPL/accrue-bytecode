@@ -48,21 +48,23 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
 
     private final Map<SSAInstruction, Integer> subscriptForInstruction;
     private int prevSubscript = 0;
+    private final IMethod method;
     private final TypeRepository typeRepository;
 
     /*
      * Factory Methods
      */
 
-    public static StringBuilderFlowSensitizer make(boolean forward, TypeRepository typeRepository) {
-        return new StringBuilderFlowSensitizer(forward, typeRepository);
+    public static Solution analyze(IMethod m, TypeRepository typeRepository) {
+        return new StringBuilderFlowSensitizer(m, typeRepository).runDataFlowAnalysisAndReturnDefUseMaps();
     }
 
     /*
      * Constructors
      */
-    private StringBuilderFlowSensitizer(boolean forward, TypeRepository typeRepository) {
-        super(forward);
+    private StringBuilderFlowSensitizer(IMethod m, TypeRepository typeRepository) {
+        super(true);
+        this.method = m;
         this.subscriptForInstruction = new HashMap<>();
         this.typeRepository = typeRepository;
     }
@@ -138,8 +140,8 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
      *
      */
 
-    public Solution runDataFlowAnalysisAndReturnDefUseMaps(IMethod m) {
-        IR ir = AnalysisUtil.getIR(m);
+    private Solution runDataFlowAnalysisAndReturnDefUseMaps() {
+        IR ir = AnalysisUtil.getIR(method);
         this.dataflow(ir);
 
         final Map<Integer, Map<Set<Integer>, Integer>> confluences = new HashMap<>();

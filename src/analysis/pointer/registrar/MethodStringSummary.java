@@ -3,7 +3,6 @@ package analysis.pointer.registrar;
 import java.util.ArrayList;
 import java.util.List;
 
-import types.TypeRepository;
 import analysis.StringAndReflectiveUtil;
 import analysis.pointer.registrar.strings.StringVariable;
 
@@ -17,7 +16,7 @@ public class MethodStringSummary {
     private final List<StringVariable> formals;
 
     public static MethodStringSummary make(FlowSensitiveStringVariableFactory stringVariableFactory, IMethod method,
-                                           IR ir, TypeRepository types) {
+                                           IR ir) {
         StringVariable ret;
         if (StringAndReflectiveUtil.isStringType(method.getReturnType())) {
             ret = stringVariableFactory.getOrCreateMethodReturn(method);
@@ -29,7 +28,7 @@ public class MethodStringSummary {
         List<StringVariable> formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); ++i) {
             if (StringAndReflectiveUtil.isStringType(method.getParameterType(i))) {
-                formals.add(stringVariableFactory.getOrCreateParamDef(ir.getParameter(i), method, types));
+                formals.add(stringVariableFactory.getOrCreateParamDef(ir.getParameter(i)));
             }
             else {
                 formals.add(null);

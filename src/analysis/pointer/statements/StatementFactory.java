@@ -732,7 +732,7 @@ public class StatementFactory {
                                                                   returnedVariable,
                                                                   returnToVariable));
 
-        return new StaticOrSpecialMethodCallStringEscape(method,
+        return new StaticOrSpecialMethodCallString(method,
                                                          stringArgumentAndParameters,
                                                          returnedVariable,
                                                          returnToVariable);
@@ -760,12 +760,11 @@ public class StatementFactory {
                                                                   returnToVariable,
                                                                   declaredTarget));
 
-        return new VirtualMethodCallStringEscape(method,
+        return new VirtualMethodCallString(method,
                                                  stringArgumentAndParameters,
                                                  returnToVariable,
                                                  declaredTarget,
-                                                 receiver,
-                                                 types);
+                                                 receiver);
     }
 
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,

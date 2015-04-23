@@ -13,26 +13,26 @@ import analysis.pointer.registrar.strings.StringVariable;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
-public class StaticOrSpecialMethodCallStringEscape extends MethodCallStringEscape {
+public class StaticOrSpecialMethodCallString extends MethodCallString {
 
     private final List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters;
-    private final StringVariable returnedVariable;
-    private final StringVariable returnToVariable;
+    private final StringVariable formalReturn;
+    private final StringVariable actualReturn;
 
-    public StaticOrSpecialMethodCallStringEscape(IMethod method,
+    public StaticOrSpecialMethodCallString(IMethod method,
                                   List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
                                   StringVariable returnedVariable, StringVariable returnToVariable) {
         super(method);
         this.stringArgumentAndParameters = stringArgumentAndParameters;
-        this.returnedVariable = returnedVariable;
-        this.returnToVariable = returnToVariable;
+        this.formalReturn = returnedVariable;
+        this.actualReturn = returnToVariable;
     }
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        return this.processCall(this.returnToVariable,
-                                this.returnedVariable,
+        return this.processCall(this.actualReturn,
+                                this.formalReturn,
                                 this.stringArgumentAndParameters,
                                 context,
                                 haf,
@@ -45,7 +45,7 @@ public class StaticOrSpecialMethodCallStringEscape extends MethodCallStringEscap
     @Override
     public String toString() {
         return "MethodCallStringEscape [stringArgumentAndParameters=" + stringArgumentAndParameters
-                + ", returnedVariable=" + returnedVariable + ", returnToVariable=" + returnToVariable + "]";
+                + ", returnedVariable=" + formalReturn + ", returnToVariable=" + actualReturn + "]";
     }
 
 }

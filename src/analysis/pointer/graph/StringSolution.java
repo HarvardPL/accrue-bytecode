@@ -7,18 +7,14 @@ import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.ReflectiveHAF;
+import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
-import com.ibm.wala.classLoader.IField;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-
 public class StringSolution {
-
-    class AbstractLocation {
-        InstanceKey receiver;
-        IField field;
-
-    }
+    /**
+     * The set of active StringSolutionVariable.
+     */
+    private final Set<StringSolutionVariable> active;
 
     /**
      * Map from PointsToGraphNode to abstract string values. The only acceptable PointsToGraphNodes are
@@ -29,20 +25,21 @@ public class StringSolution {
     private final ConcurrentMap<StringSolutionVariable, AString> map;
 
     private final ReflectiveHAF haf;
-    private final StringDependencies stringDependencies;
+    private final DependencyRecorder depRecorder;
 
     /* Factory Methods */
 
-    public static StringSolution make(ReflectiveHAF haf) {
-        return new StringSolution(haf);
+    public static StringSolution make(ReflectiveHAF haf, DependencyRecorder depRecorder) {
+        return new StringSolution(haf, depRecorder);
     }
 
     /* Constructors */
 
-    private StringSolution(ReflectiveHAF haf) {
+    private StringSolution(ReflectiveHAF haf, DependencyRecorder depRecorder) {
+        this.active = AnalysisUtil.createConcurrentSet();
         this.haf = haf;
+        this.depRecorder = depRecorder;
         this.map = AnalysisUtil.createConcurrentHashMap();
-        this.stringDependencies = StringDependencies.make();
     }
 
     /* Logic */
@@ -58,7 +55,7 @@ public class StringSolution {
     }
 
     public StringSolutionDelta joinAt(StringSolutionVariable svr, AString shat) {
-        if (this.stringDependencies.isActive(svr)) {
+        if (this.isActive(svr)) {
             // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
             AString current = this.map.get(svr);
             if (current == null) {
@@ -94,7 +91,7 @@ public class StringSolution {
     }
 
     public StringSolutionDelta upperBounds(StringSolutionVariable svr1, StringSolutionVariable svr2) {
-        if (this.stringDependencies.isActive(svr1)) {
+        if (this.isActive(svr1)) {
             if (this.map.containsKey(svr2)) {
                 return this.joinAt(svr1, this.map.get(svr2));
             }
@@ -108,44 +105,41 @@ public class StringSolution {
     }
 
     public StringSolutionDelta recordDependency(StringSolutionVariable x, StringSolutionVariable y) {
-        return StringSolutionDelta.makeWithNeedDefs(this, this.stringDependencies.recordDependency(x, y));
+        return StringSolutionDelta.makeWithNeedDefs(this, this.depRecorder.recordDependency(x, y));
     }
 
     public StringSolutionDelta activate(StringSolutionVariable x) {
-        Set<StringSolutionVariable> activatedSVRs = this.stringDependencies.activate(x);
-        if (activatedSVRs.isEmpty()) {
-            return StringSolutionDelta.makeEmpty(this);
+        if (this.active.add(x)) {
+            return StringSolutionDelta.newlyActivated(this, x);
         }
-        else {
-            return StringSolutionDelta.makeWithNeedDefs(this, activatedSVRs);
-        }
+        return StringSolutionDelta.makeEmpty(this);
     }
 
     public boolean isActive(StringSolutionVariable x) {
-        return this.stringDependencies.isActive(x);
+        return this.active.contains(x);
     }
 
     public void recordStringStatementUseDependency(StringSolutionVariable v, StmtAndContext sac) {
-        this.stringDependencies.recordStatementUseDependency(v, sac);
+        this.depRecorder.recordRead(v, sac);
     }
 
     public void recordStringStatementDefineDependency(StringSolutionVariable v, StmtAndContext sac) {
-        this.stringDependencies.recordStatementDefineDependency(v, sac);
+        this.depRecorder.recordWrite(v, sac);
     }
 
-    public Set<StmtAndContext> getDefinedBy(StringSolutionVariable v) {
-        return this.stringDependencies.getDefinedBy(v);
-    }
-
-    public Set<StmtAndContext> getUsedBy(StringSolutionVariable v) {
-        return this.stringDependencies.getUsedBy(v);
-    }
+    //    public Set<StmtAndContext> getDefinedBy(StringSolutionVariable v) {
+    //        return this.stringDependencies.getWrittenBy(v);
+    //    }
+    //
+    //    public Set<StmtAndContext> getUsedBy(StringSolutionVariable v) {
+    //        return this.stringDependencies.getUsedBy(v);
+    //    }
 
     public String getStatistics() {
         StringBuilder sb = new StringBuilder();
         sb.append("StringConstraints Statistics:\n");
         sb.append("    total variables: " + this.map.size() + "\n");
-        sb.append("    active variables: " + this.stringDependencies.getActiveSet().size() + "\n");
+        sb.append("    active variables: " + this.active.size() + "\n");
         return sb.toString();
     }
 
@@ -162,8 +156,8 @@ public class StringSolution {
         return "StringConstraints [map=" + map + "]";
     }
 
-    public void printSVRDependencyTree(StringSolutionVariable svr) {
-        this.stringDependencies.printSVRDependencyTree(svr, this);
-    }
+    //    public void printSVRDependencyTree(StringSolutionVariable svr) {
+    //        this.stringDependencies.printSVRDependencyTree(svr, this);
+    //    }
 
 }

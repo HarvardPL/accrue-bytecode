@@ -1,4 +1,4 @@
-package analysis.pointer.graph;
+package analysis.pointer.engine;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -8,13 +8,13 @@ import java.util.concurrent.ConcurrentMap;
 import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
+import analysis.pointer.graph.StringSolution;
+import analysis.pointer.graph.StringSolutionVariable;
 
 /**
  * Tracks the dependencies between StringSolutionVariables.
  */
 public class StringDependencies {
-    private final Set<StringSolutionVariable> active;
-
     /**
      * If svr1 ∈ dependsOn.get(svr2) then if the value of svr2 changes, the value of svr1 may need to change
      *
@@ -32,10 +32,6 @@ public class StringDependencies {
      * usedBy.get(svr) is the set of StmtAndContexts that use svr.
      */
     private final ConcurrentMap<StringSolutionVariable, Set<StmtAndContext>> usedBy;
-
-    public static StringDependencies make() {
-        return new StringDependencies();
-    }
 
     private StringDependencies() {
         this.active = AnalysisUtil.createConcurrentSet();
@@ -89,15 +85,15 @@ public class StringDependencies {
         return this.active;
     }
 
-    public void recordStatementDefineDependency(StringSolutionVariable v, StmtAndContext sac) {
+    public void recordWrite(StringSolutionVariable v, StmtAndContext sac) {
         setMapPut(this.definedBy, v, sac);
     }
 
-    public void recordStatementUseDependency(StringSolutionVariable v, StmtAndContext sac) {
+    public void recordRead(StringSolutionVariable v, StmtAndContext sac) {
         setMapPut(this.usedBy, v, sac);
     }
 
-    public Set<StmtAndContext> getDefinedBy(StringSolutionVariable v) {
+    public Set<StmtAndContext> getWrittenBy(StringSolutionVariable v) {
         Logger.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.definedBy, v));
         return setMapGet(this.definedBy, v);
     }

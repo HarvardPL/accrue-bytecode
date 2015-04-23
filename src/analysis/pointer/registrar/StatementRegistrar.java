@@ -241,7 +241,7 @@ public class StatementRegistrar {
             }
             debugPrint(m, "\n-------");
 
-            FlowSensitiveStringVariableFactory stringVariableFactory = getOrCreateStringVariableFactory(m, types);
+            FlowSensitiveStringVariableFactory stringVariableFactory = getOrCreateStringVariableFactory(m);
 
             debugPrint(m, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
             // Add edges from formal summary nodes to the local variables representing the method parameters
@@ -301,13 +301,15 @@ public class StatementRegistrar {
 
     }
 
-    private FlowSensitiveStringVariableFactory getOrCreateStringVariableFactory(IMethod m, TypeRepository types) {
+    private FlowSensitiveStringVariableFactory getOrCreateStringVariableFactory(IMethod m) {
         // XXX: Not thread-safe
         FlowSensitiveStringVariableFactory v = stringVariableFactoryMap.get(m);
         if (v == null) {
-            StringBuilderFlowSensitizer sbfs = StringBuilderFlowSensitizer.make(true, types);
-            Solution sensitizerSolution = sbfs.runDataFlowAnalysisAndReturnDefUseMaps(m);
-            FlowSensitiveStringVariableFactory stringVariableFactory = FlowSensitiveStringVariableFactory.make(sensitizerSolution.getDefMap(),
+            TypeRepository types = new TypeRepository(AnalysisUtil.getIR(m));
+            Solution sensitizerSolution = StringBuilderFlowSensitizer.analyze(m, types);
+            FlowSensitiveStringVariableFactory stringVariableFactory = FlowSensitiveStringVariableFactory.make(m,
+                                                                                                               types,
+                                                                                                               sensitizerSolution.getDefMap(),
                                                                                                                sensitizerSolution.getUseMap());
             stringVariableFactoryMap.put(m, stringVariableFactory);
             /* Add string phi nodes for control joins */
@@ -322,16 +324,11 @@ public class StatementRegistrar {
                     Set<Integer> dependentSensitizers = kv2.getKey();
                     Integer sensitizer = kv2.getValue();
 
-                    StringVariable sv = stringVariableFactory.getOrCreateLocalWithSubscript(varNum,
-                                                                                            sensitizer,
-                                                                                            m,
-                                                                                            types);
+                    StringVariable sv = stringVariableFactory.getOrCreateLocalWithSubscript(varNum, sensitizer);
                     Set<StringVariable> dependentSVs = new HashSet<>();
                     for (Integer dependentSensitizer : dependentSensitizers) {
                         dependentSVs.add(stringVariableFactory.getOrCreateLocalWithSubscript(varNum,
-                                                                                             dependentSensitizer,
-                                                                                             m,
-                                                                                             types));
+                                                                                             dependentSensitizer));
                     }
                     this.addStringStatement(stmtFactory.stringPhiNode(m, sv, dependentSVs));
                 }
@@ -551,7 +548,7 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.fieldToLocal(v, o, f, ir.getMethod()));
 
         if (StringAndReflectiveUtil.isStringType(resultType)) {
-            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
+            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), pp);
             this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
         }
     }
@@ -576,7 +573,7 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.staticFieldToLocal(v, f, ir.getMethod()));
 
         if (StringAndReflectiveUtil.isStringType(resultType)) {
-            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
+            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), pp);
             StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
             this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, i.getDeclaredField()
                                                                                     .getDeclaringClass()
@@ -606,8 +603,8 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.localToField(o, f, v, ir.getMethod(), i));
 
         if (StringAndReflectiveUtil.isStringType(valueType)) {
-            StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal(), ir.getMethod(), types, pp);
-            StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), ir.getMethod(), types, pp);
+            StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal(), pp);
+            StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), pp);
             this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod()));
         }
     }
@@ -632,7 +629,7 @@ public class StatementRegistrar {
 
         if (StringAndReflectiveUtil.isStringType(valueType)) {
             StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
-            StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), ir.getMethod(), types, pp);
+            StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), pp);
             this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svv, ir.getMethod()));
         }
     }
@@ -720,7 +717,7 @@ public class StatementRegistrar {
             if (ForNameCallStatement.isForNameCall(i)) {
                 List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                 for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
                 }
                 this.addStatement(stmtFactory.forNameCall(i.getCallSite(),
                                                           ir.getMethod(),
@@ -732,12 +729,10 @@ public class StatementRegistrar {
             else if (GetPropertyStatement.isGetPropertyCall(i)) {
                 List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                 for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
                 }
                 StringVariable svresult = stringVariableFactory.getOrCreateLocalUse(i,
                                                                                     i.getReturnValue(0),
-                                                                                    ir.getMethod(),
-                                                                                    types,
                                                                                     pp);
                 this.addStringStatement(stmtFactory.getPropertyCall(i.getCallSite(),
                                                                     ir.getMethod(),
@@ -749,7 +744,6 @@ public class StatementRegistrar {
                 this.createStaticOrSpecialMethodCallStringEscape(i,
                                                                  ir,
                                                                  stringVariableFactory,
-                                                                 types,
                                                                  pp,
                                                                  resolvedCallee);
             }
@@ -774,8 +768,6 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringInitMethod(i.getDeclaredTarget())) {
                 StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i,
                                                                                          i.getReceiver(),
-                                                                                         ir.getMethod(),
-                                                                                         types,
                                                                                          pp);
 
                 this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
@@ -784,7 +776,6 @@ public class StatementRegistrar {
                 this.createStaticOrSpecialMethodCallStringEscape(i,
                                                                  ir,
                                                                  stringVariableFactory,
-                                                                 types,
                                                                  pp,
                                                                  resolvedCallee);
             }
@@ -799,22 +790,16 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringMethod(i.getDeclaredTarget())) {
                 StringVariable svresult = stringVariableFactory.getOrCreateLocalDef(i,
                                                                                     i.getReturnValue(0),
-                                                                                    ir.getMethod(),
-                                                                                    types,
                                                                                     pp);
                 StringVariable svreceiverUse = stringVariableFactory.getOrCreateLocalUse(i,
                                                                                          i.getReceiver(),
-                                                                                         ir.getMethod(),
-                                                                                         types,
                                                                                          pp);
                 StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i,
                                                                                          i.getReceiver(),
-                                                                                         ir.getMethod(),
-                                                                                         types,
                                                                                          pp);
                 List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                 for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
                 }
                 this.addStringStatement(stmtFactory.stringMethodCall(i.getCallSite(),
                                                                      ir.getMethod(),
@@ -859,8 +844,6 @@ public class StatementRegistrar {
         if (StringAndReflectiveUtil.isStringType(i.getDeclaredResultType())) {
             returnToVariable = stringVariableFactory.getOrCreateLocalDef(i,
                                                                          i.getReturnValue(0),
-                                                                         ir.getMethod(),
-                                                                         types,
                                                                          pp);
             assert returnToVariable != null;
         }
@@ -872,8 +855,6 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
                 StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i,
                                                                                     i.getUse(j),
-                                                                                    ir.getMethod(),
-                                                                                    types,
                                                                                     pp);
                 OrderedPair<StringVariable, Integer> pair = new OrderedPair<>(argument, j);
                 stringArgumentAndParameters.add(pair);
@@ -889,33 +870,24 @@ public class StatementRegistrar {
 
     private void createStaticOrSpecialMethodCallStringEscape(SSAInvokeInstruction i, IR ir,
                                                              FlowSensitiveStringVariableFactory stringVariableFactory,
-                                                             TypeRepository types, PrettyPrinter pp,
-                                                             IMethod resolvedCallee) {
-        MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee, types);
-        StringVariable returnedVariable;
-        StringVariable returnToVariable;
+                                                             PrettyPrinter pp, IMethod resolvedCallee) {
+        MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee);
+        StringVariable formalReturn;
+        StringVariable actualReturn;
         if (summary.getRet() == null) {
-            returnedVariable = null;
-            returnToVariable = null;
+            formalReturn = null;
+            actualReturn = null;
         }
         else {
-            returnedVariable = summary.getRet();
-            returnToVariable = stringVariableFactory.getOrCreateLocalDef(i,
-                                                                         i.getReturnValue(0),
-                                                                         ir.getMethod(),
-                                                                         types,
-                                                                         pp);
-            assert returnedVariable != null;
-            assert returnToVariable != null;
+            formalReturn = summary.getRet();
+            actualReturn = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0), pp);
+            assert formalReturn != null;
+            assert actualReturn != null;
         }
         ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
         for (int j = 0; j < ir.getMethod().getNumberOfParameters(); ++j) {
             if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i,
-                                                                                    i.getUse(j),
-                                                                                    ir.getMethod(),
-                                                                                    types,
-                                                                                    pp);
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp);
                 StringVariable parameter = summary.getFormals().get(j);
                 assert parameter != null;
                 OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
@@ -924,8 +896,8 @@ public class StatementRegistrar {
         }
         this.addStringStatement(stmtFactory.staticOrSpecialMethodCallStringEscape(ir.getMethod(),
                                                                                   stringArgumentAndParameters,
-                                                                                  returnedVariable,
-                                                                                  returnToVariable));
+                                                                                  formalReturn,
+                                                                                  actualReturn));
     }
 
     /**
@@ -1029,7 +1001,7 @@ public class StatementRegistrar {
         }
 
         if (stringVariableFactory.isStringType(resultType)) {
-            StringVariable sv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
+            StringVariable sv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), pp);
             this.addStringStatement(stmtFactory.newString(sv, ir.getMethod()));
         }
     }
@@ -1070,15 +1042,13 @@ public class StatementRegistrar {
         if (StringAndReflectiveUtil.isStringType(phiType)) {
             StringVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i,
                                                                                   i.getDef(),
-                                                                                  ir.getMethod(),
-                                                                                  types,
                                                                                   pp);
             List<StringVariable> svuses = new ArrayList<>(i.getNumberOfUses());
             for (int j = 0; j < i.getNumberOfUses(); ++j) {
                 if (!types.getType(i.getUse(j)).equals(TypeReference.findOrCreate(ClassLoaderReference.Primordial,
                                                                                   "null"))) {
                     // XXX: Wtf, how can type names be the string "null"?
-                    svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+                    svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
                 }
             }
             this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
@@ -1351,8 +1321,6 @@ public class StatementRegistrar {
                 String stringLiteralString = ir.getSymbolTable().getStringValue(use);
                 StringVariable stringLiteralVariable = stringVariableFactory.getOrCreateLocalUse(i,
                                                                                                  use,
-                                                                                                 ir.getMethod(),
-                                                                                                 types,
                                                                                                  pp);
                 this.addStringStatement(new StringLiteralStatement(ir.getMethod(),
                                                                    stringLiteralVariable,
@@ -1599,12 +1567,12 @@ public class StatementRegistrar {
         }
     }
 
-    public MethodStringSummary findOrCreateStringMethodSummary(IMethod method, TypeRepository types) {
+    public MethodStringSummary findOrCreateStringMethodSummary(IMethod method) {
         IR ir = AnalysisUtil.getIR(method);
-        FlowSensitiveStringVariableFactory stringVariableFactory = this.getOrCreateStringVariableFactory(method, types);
+        FlowSensitiveStringVariableFactory stringVariableFactory = this.getOrCreateStringVariableFactory(method);
         MethodStringSummary summary = this.methodStringSummaries.get(method);
         if (summary == null) {
-            summary = MethodStringSummary.make(stringVariableFactory, method, ir, types);
+            summary = MethodStringSummary.make(stringVariableFactory, method, ir);
             MethodStringSummary previous = this.methodStringSummaries.putIfAbsent(method, summary);
             return previous == null ? summary : previous;
         }
