@@ -28,7 +28,7 @@ public class NewStringStatement extends StringStatement {
 
         g.recordStringStatementDefineDependency(svr, originator);
 
-        return g.stringVariableReplicaJoinAt(svr, ((ReflectiveHAF) haf).getAStringBottom());
+        return g.stringSolutionVariableReplicaJoinAt(svr, ((ReflectiveHAF) haf).getAStringBottom());
     }
 
     @Override

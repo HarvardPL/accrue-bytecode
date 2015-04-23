@@ -36,9 +36,9 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
 
         g.recordStringStatementUseDependency(fRVR, originator);
 
-        newDelta.combine(g.recordStringVariableDependency(vRVR, fRVR));
+        newDelta.combine(g.recordStringSolutionVariableDependency(vRVR, fRVR));
 
-        newDelta.combine(g.stringVariableReplicaUpperBounds(vRVR, fRVR));
+        newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(vRVR, fRVR));
 
         return newDelta;
     }

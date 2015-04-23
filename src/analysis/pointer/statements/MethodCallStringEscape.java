@@ -40,14 +40,14 @@ public abstract class MethodCallStringEscape extends StringStatement {
 
         g.recordStringStatementDefineDependency(returnToVariableSVR, originator);
         g.recordStringStatementUseDependency(returnedVariableSVR, originator);
-        newDelta.combine(g.recordStringVariableDependency(returnToVariableSVR, returnedVariableSVR));
-        newDelta.combine(g.stringVariableReplicaUpperBounds(returnToVariableSVR, returnedVariableSVR));
+        newDelta.combine(g.recordStringSolutionVariableDependency(returnToVariableSVR, returnedVariableSVR));
+        newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(returnToVariableSVR, returnedVariableSVR));
 
         for (OrderedPair<StringVariableReplica, StringVariableReplica> pair : stringArgumentAndParameterSVRs) {
             g.recordStringStatementUseDependency(pair.fst(), originator);
             g.recordStringStatementDefineDependency(pair.snd(), originator);
-            newDelta.combine(g.recordStringVariableDependency(pair.fst(), pair.snd()));
-            newDelta.combine(g.stringVariableReplicaUpperBounds(pair.fst(), pair.snd()));
+            newDelta.combine(g.recordStringSolutionVariableDependency(pair.fst(), pair.snd()));
+            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(pair.fst(), pair.snd()));
         }
 
         return newDelta;

@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -12,7 +12,6 @@ import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
-import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -48,21 +47,14 @@ public class LocalToFieldStringStatement extends StringStatement {
 
         g.recordStringStatementDefineDependency(vDefSVR, originator);
         g.recordStringStatementUseDependency(vUseSVR, originator);
-        newDelta.combine(g.recordStringVariableIndirectDependency(vDefSVR, vUseSVR));
 
         for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
 
-            AllocSiteNode allocationSite = AllocSiteNodeFactory.createGenerated("LocalToFieldStringStatement",
-                                                                                AnalysisUtil.getClassHierarchy()
-                                                                                            .lookupClass(vUseSVR.getExpectedType()),
-                                                                                this.getMethod(),
-                                                                                null, // XXX : AllocSiteNodeFactory limits the each result to one alloc site
-                                                                                false);
-
-            newDelta.combine(g.addEdgeToAString(of, vUseSVR, allocationSite, context, originator));
-
-            newDelta.combine(g.stringVariableReplicaJoinAt(vDefSVR, pti.astringForPointsToGraphNode(of, originator)));
+            newDelta.combine(g.recordStringSolutionVariableDependency(of, vUseSVR));
+            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(of, vUseSVR));
+            // XXX: Hack to deal with escape
+            newDelta.combine(g.stringSolutionVariableReplicaJoinAt(vDefSVR, ((ReflectiveHAF) haf).getAStringTop()));
         }
 
         return newDelta;

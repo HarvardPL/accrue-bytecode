@@ -65,7 +65,7 @@ public class GetPropertyStatement extends StringStatement {
 
             for (StringVariableReplica argument : argumentsvrs) {
                 g.recordStringStatementUseDependency(argument, originator);
-                newDelta.combine(g.recordStringVariableDependency(resultsvr, argument));
+                newDelta.combine(g.recordStringSolutionVariableDependency(resultsvr, argument));
             }
 
             Logger.push(true);
@@ -80,7 +80,7 @@ public class GetPropertyStatement extends StringStatement {
             Logger.println("[GetPropertyStatement] adding: " + shat);
             Logger.push(false);
 
-            newDelta.combine(g.stringVariableReplicaJoinAt(resultsvr, shat));
+            newDelta.combine(g.stringSolutionVariableReplicaJoinAt(resultsvr, shat));
             return newDelta;
         }
         //        case 2: {

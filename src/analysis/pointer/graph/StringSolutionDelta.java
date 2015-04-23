@@ -10,46 +10,46 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 public class StringSolutionDelta {
 
     private final StringSolution sc;
-    private Set<StringVariableReplica> needUses;
-    private Set<StringVariableReplica> needDefs;
+    private Set<StringSolutionVariable> needUses;
+    private Set<StringSolutionVariable> needDefs;
 
     /* Factory Methods */
 
     public static final StringSolutionDelta makeEmpty(StringSolution sc) {
         return new StringSolutionDelta(sc,
-                                       AnalysisUtil.<StringVariableReplica> createConcurrentSet(),
-                                       AnalysisUtil.<StringVariableReplica> createConcurrentSet());
+                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet(),
+                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
     }
 
-    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, StringVariableReplica needsUses) {
+    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, StringSolutionVariable needsUses) {
         return new StringSolutionDelta(sc,
                                        AnalysisUtil.createConcurrentSingletonSet(needsUses),
-                                       AnalysisUtil.<StringVariableReplica> createConcurrentSet());
+                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
     }
 
-    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, StringVariableReplica needsDefs) {
+    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, StringSolutionVariable needsDefs) {
         return new StringSolutionDelta(sc,
-                                       AnalysisUtil.<StringVariableReplica> createConcurrentSet(),
+                                       AnalysisUtil.<StringSolutionVariable> createConcurrentSet(),
                                        AnalysisUtil.createConcurrentSingletonSet(needsDefs));
     }
 
-    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, Set<StringVariableReplica> needUses) {
-        return new StringSolutionDelta(sc, needUses, AnalysisUtil.<StringVariableReplica> createConcurrentSet());
+    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, Set<StringSolutionVariable> needUses) {
+        return new StringSolutionDelta(sc, needUses, AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
     }
 
-    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, Set<StringVariableReplica> needDefs) {
-        return new StringSolutionDelta(sc, AnalysisUtil.<StringVariableReplica> createConcurrentSet(), needDefs);
+    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, Set<StringSolutionVariable> needDefs) {
+        return new StringSolutionDelta(sc, AnalysisUtil.<StringSolutionVariable> createConcurrentSet(), needDefs);
     }
 
-    public static final StringSolutionDelta make(StringSolution sc, Set<StringVariableReplica> needUses,
-                                                 Set<StringVariableReplica> needDefs) {
+    public static final StringSolutionDelta make(StringSolution sc, Set<StringSolutionVariable> needUses,
+                                                 Set<StringSolutionVariable> needDefs) {
         return new StringSolutionDelta(sc, needUses, needDefs);
     }
 
     /* Constructors */
 
-    public StringSolutionDelta(StringSolution sc, Set<StringVariableReplica> needUses,
-                               Set<StringVariableReplica> needDefs) {
+    public StringSolutionDelta(StringSolution sc, Set<StringSolutionVariable> needUses,
+                               Set<StringSolutionVariable> needDefs) {
         this.sc = sc;
         this.needUses = needUses;
         this.needDefs = needDefs;
@@ -57,7 +57,7 @@ public class StringSolutionDelta {
 
     /* Logic */
 
-    public Optional<AString> getAStringFor(StringVariableReplica svr) {
+    public Optional<AString> getAStringFor(StringSolutionVariable svr) {
         if (this.needUses.contains(svr)) {
             return Optional.some(this.sc.getAStringFor(svr));
         }
@@ -74,21 +74,16 @@ public class StringSolutionDelta {
         assert this.sc == that.sc;
         this.needUses.addAll(that.needUses);
         this.needDefs.addAll(that.needDefs);
-
-        //        Set<StringVariableReplica> svrs = AnalysisUtil.createConcurrentSet();
-        //        svrs.addAll(this.svrs);
-        //        svrs.addAll(that.svrs);
-        //        this.svrs = svrs;
     }
 
     public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
         Set<StmtAndContext> s = AnalysisUtil.createConcurrentSet();
 
-        for (StringVariableReplica v : this.needDefs) {
+        for (StringSolutionVariable v : this.needDefs) {
             s.addAll(this.sc.getDefinedBy(v));
         }
 
-        for (StringVariableReplica v : this.needUses) {
+        for (StringSolutionVariable v : this.needUses) {
             s.addAll(this.sc.getUsedBy(v));
         }
 

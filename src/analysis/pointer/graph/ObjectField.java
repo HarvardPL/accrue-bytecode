@@ -7,7 +7,7 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Point-to graph node representing a non-static field of an object
  */
-public final class ObjectField implements PointsToGraphNode {
+public final class ObjectField implements PointsToGraphNode, StringSolutionVariable {
 
     /**
      * Heap context for the receiver of the field
@@ -29,7 +29,7 @@ public final class ObjectField implements PointsToGraphNode {
 
     /**
      * Points-to graph node representing a non-static field of an object
-     * 
+     *
      * @param receiver
      *            heap context for the receiver
      * @param fieldName
@@ -50,7 +50,7 @@ public final class ObjectField implements PointsToGraphNode {
 
     /**
      * Points-to graph node representing a non-static field of an object
-     * 
+     *
      * @param receiver
      *            heap context for the receiver
      * @param fieldReference

@@ -1367,19 +1367,15 @@ public final class PointsToGraph implements PointsToIterable {
         return this.sc;
     }
 
-    public GraphDelta stringVariableReplicaJoinAt(StringVariableReplica svr, AString shat) {
+    public GraphDelta stringSolutionVariableReplicaJoinAt(StringSolutionVariable svr, AString shat) {
         // Logger.println("[PointsToGraph] " + svr + " <- " + this.getAStringFor(svr) + " ⊔ " + shat);
         return new GraphDelta(this, this.sc.joinAt(svr, shat));
     }
 
-    public GraphDelta stringVariableReplicaUpperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
+    public GraphDelta stringSolutionVariableReplicaUpperBounds(StringSolutionVariable svr1, StringSolutionVariable svr2) {
         Logger.println("[PointsToGraph] " + this.getAStringFor(svr1) + " = " + svr1 + " ⊒ " + svr2 + " = "
                 + this.getAStringFor(svr2));
         return new GraphDelta(this, this.sc.upperBounds(svr1, svr2));
-    }
-
-    public void ikDependsOnStringVariable(InstanceKey newIK, StringVariableReplica svr) {
-        /* XXX: implement interprocedural analysis */
     }
 
     @Override
@@ -1393,37 +1389,27 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     @Override
-    public Optional<AString> getAStringUpdatesFor(StringVariableReplica x) {
+    public Optional<AString> getAStringUpdatesFor(StringSolutionVariable x) {
         return Optional.some(this.sc.getAStringFor(x));
     }
 
-    public AString getAStringFor(StringVariableReplica x) {
+    public AString getAStringFor(StringSolutionVariable x) {
         return this.sc.getAStringFor(x);
     }
 
-    public void recordStringStatementUseDependency(StringVariableReplica x, StmtAndContext s) {
+    public void recordStringStatementUseDependency(StringSolutionVariable x, StmtAndContext s) {
         this.sc.recordStringStatementUseDependency(x, s);
     }
 
-    public GraphDelta recordStringVariableDependency(StringVariableReplica x, StringVariableReplica y) {
+    public GraphDelta recordStringSolutionVariableDependency(StringSolutionVariable x, StringSolutionVariable y) {
         return new GraphDelta(this, this.sc.recordDependency(x, y));
     }
 
-    /**
-     * This method is for string variables that depend indirectly on one another. For example, through an escaping
-     * InstanceKey. I'm not sure exactly how to deal with this, so I added this special method (which does not differ in
-     * functionality from @code{recordStringVariableDependency}) to denote that situation.
-     *
-     */
-    public GraphDelta recordStringVariableIndirectDependency(StringVariableReplica x, StringVariableReplica y) {
-        return this.recordStringVariableDependency(x, y);
-    }
-
-    public void recordStringStatementDefineDependency(StringVariableReplica x, StmtAndContext s) {
+    public void recordStringStatementDefineDependency(StringSolutionVariable x, StmtAndContext s) {
         this.sc.recordStringStatementDefineDependency(x, s);
     }
 
-    public GraphDelta activateStringVariable(StringVariableReplica x) {
+    public GraphDelta activateStringSolutionVariable(StringSolutionVariable x) {
         return new GraphDelta(this, this.sc.activate(x));
     }
 
@@ -1466,7 +1452,7 @@ public final class PointsToGraph implements PointsToIterable {
         return minv;
     }
 
-    public void printSVRDependencyTree(StringVariableReplica svr) {
+    public void printSVRDependencyTree(StringSolutionVariable svr) {
         this.sc.printSVRDependencyTree(svr);
     }
 

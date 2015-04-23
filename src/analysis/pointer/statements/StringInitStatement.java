@@ -35,7 +35,7 @@ public class StringInitStatement extends StringStatement {
 
         g.recordStringStatementDefineDependency(svr, originator);
 
-        newDelta.combine(g.stringVariableReplicaJoinAt(svr,
+        newDelta.combine(g.stringSolutionVariableReplicaJoinAt(svr,
                                                        ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(""))));
 
         return newDelta;

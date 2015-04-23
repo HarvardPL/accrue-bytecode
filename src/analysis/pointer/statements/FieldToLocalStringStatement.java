@@ -47,7 +47,9 @@ public class FieldToLocalStringStatement extends StringStatement {
         for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
             ObjectField f = new ObjectField(oIK, this.field);
 
-            newDelta.combine(g.stringVariableReplicaJoinAt(vSVR, pti.astringForPointsToGraphNode(f, originator)));
+            g.recordStringStatementUseDependency(f, originator);
+            newDelta.combine(g.recordStringSolutionVariableDependency(vSVR, f));
+            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(vSVR, f));
         }
         return newDelta;
     }

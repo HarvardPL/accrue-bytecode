@@ -77,7 +77,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         g.printSVRDependencyTree(nameSVR);
 
-        changed.combine(g.activateStringVariable(nameSVR));
+        changed.combine(g.activateStringSolutionVariable(nameSVR));
 
         PointsToIterable pti = delta == null ? g : delta;
 

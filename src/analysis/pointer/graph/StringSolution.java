@@ -22,11 +22,11 @@ public class StringSolution {
 
     /**
      * Map from PointsToGraphNode to abstract string values. The only acceptable PointsToGraphNodes are
-     * StringVariableReplicas and ObjectFields. StringVariableReplicas are used to represent local String-valued
+     * StringSolutionVariables and ObjectFields. StringSolutionVariables are used to represent local String-valued
      * variables, local StringBuilder (i.e., StringBuilders that have not escaped local scope) and static
      * fields.ObjectFields are used to represent fields of objects of type String or StringBuilder.
      */
-    private final ConcurrentMap<PointsToGraphNode, AString> map;
+    private final ConcurrentMap<StringSolutionVariable, AString> map;
 
     private final ReflectiveHAF haf;
     private final StringDependencies stringDependencies;
@@ -47,7 +47,7 @@ public class StringSolution {
 
     /* Logic */
 
-    public AString getAStringFor(StringVariableReplica svr) {
+    public AString getAStringFor(StringSolutionVariable svr) {
         AString shat = this.map.get(svr);
         if (shat == null) {
             return haf.getAStringBottom();
@@ -57,7 +57,7 @@ public class StringSolution {
         }
     }
 
-    public StringSolutionDelta joinAt(StringVariableReplica svr, AString shat) {
+    public StringSolutionDelta joinAt(StringSolutionVariable svr, AString shat) {
         if (this.stringDependencies.isActive(svr)) {
             // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
             AString current = this.map.get(svr);
@@ -93,7 +93,7 @@ public class StringSolution {
         }
     }
 
-    public StringSolutionDelta upperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
+    public StringSolutionDelta upperBounds(StringSolutionVariable svr1, StringSolutionVariable svr2) {
         if (this.stringDependencies.isActive(svr1)) {
             if (this.map.containsKey(svr2)) {
                 return this.joinAt(svr1, this.map.get(svr2));
@@ -107,12 +107,12 @@ public class StringSolution {
         }
     }
 
-    public StringSolutionDelta recordDependency(StringVariableReplica x, StringVariableReplica y) {
+    public StringSolutionDelta recordDependency(StringSolutionVariable x, StringSolutionVariable y) {
         return StringSolutionDelta.makeWithNeedDefs(this, this.stringDependencies.recordDependency(x, y));
     }
 
-    public StringSolutionDelta activate(StringVariableReplica x) {
-        Set<StringVariableReplica> activatedSVRs = this.stringDependencies.activate(x);
+    public StringSolutionDelta activate(StringSolutionVariable x) {
+        Set<StringSolutionVariable> activatedSVRs = this.stringDependencies.activate(x);
         if (activatedSVRs.isEmpty()) {
             return StringSolutionDelta.makeEmpty(this);
         }
@@ -121,23 +121,23 @@ public class StringSolution {
         }
     }
 
-    public boolean isActive(StringVariableReplica x) {
+    public boolean isActive(StringSolutionVariable x) {
         return this.stringDependencies.isActive(x);
     }
 
-    public void recordStringStatementUseDependency(StringVariableReplica v, StmtAndContext sac) {
+    public void recordStringStatementUseDependency(StringSolutionVariable v, StmtAndContext sac) {
         this.stringDependencies.recordStatementUseDependency(v, sac);
     }
 
-    public void recordStringStatementDefineDependency(StringVariableReplica v, StmtAndContext sac) {
+    public void recordStringStatementDefineDependency(StringSolutionVariable v, StmtAndContext sac) {
         this.stringDependencies.recordStatementDefineDependency(v, sac);
     }
 
-    public Set<StmtAndContext> getDefinedBy(StringVariableReplica v) {
+    public Set<StmtAndContext> getDefinedBy(StringSolutionVariable v) {
         return this.stringDependencies.getDefinedBy(v);
     }
 
-    public Set<StmtAndContext> getUsedBy(StringVariableReplica v) {
+    public Set<StmtAndContext> getUsedBy(StringSolutionVariable v) {
         return this.stringDependencies.getUsedBy(v);
     }
 
@@ -162,7 +162,7 @@ public class StringSolution {
         return "StringConstraints [map=" + map + "]";
     }
 
-    public void printSVRDependencyTree(StringVariableReplica svr) {
+    public void printSVRDependencyTree(StringSolutionVariable svr) {
         this.stringDependencies.printSVRDependencyTree(svr, this);
     }
 

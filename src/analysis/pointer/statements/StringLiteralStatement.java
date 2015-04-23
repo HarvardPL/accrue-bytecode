@@ -35,7 +35,7 @@ public class StringLiteralStatement extends StringStatement {
 
         AString shat = ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(value));
 
-        return g.stringVariableReplicaJoinAt(vSVR, shat);
+        return g.stringSolutionVariableReplicaJoinAt(vSVR, shat);
     }
 
     @Override

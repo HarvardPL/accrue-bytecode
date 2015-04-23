@@ -10,10 +10,10 @@ import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
 /**
- * Tracks the dependencies between StringVariableReplicas.
+ * Tracks the dependencies between StringSolutionVariables.
  */
 public class StringDependencies {
-    private final Set<StringVariableReplica> active;
+    private final Set<StringSolutionVariable> active;
 
     /**
      * If svr1 ∈ dependsOn.get(svr2) then if the value of svr2 changes, the value of svr1 may need to change
@@ -21,17 +21,17 @@ public class StringDependencies {
      * XXX is this equivalent to { (sac.stmt.getDef(), sac.context)| sac ∈ this.usedBy.get(svr2)} ??
      *
      */
-    private final ConcurrentMap<StringVariableReplica, Set<StringVariableReplica>> dependsOn;
+    private final ConcurrentMap<StringSolutionVariable, Set<StringSolutionVariable>> dependsOn;
 
     /**
      * definedBy.get(svr) is the set of StmtAndContexts that define svr.
      */
-    private final ConcurrentMap<StringVariableReplica, Set<StmtAndContext>> definedBy;
+    private final ConcurrentMap<StringSolutionVariable, Set<StmtAndContext>> definedBy;
 
     /**
      * usedBy.get(svr) is the set of StmtAndContexts that use svr.
      */
-    private final ConcurrentMap<StringVariableReplica, Set<StmtAndContext>> usedBy;
+    private final ConcurrentMap<StringSolutionVariable, Set<StmtAndContext>> usedBy;
 
     public static StringDependencies make() {
         return new StringDependencies();
@@ -45,14 +45,14 @@ public class StringDependencies {
     }
 
     /**
-     * Record that x depends on y, and return the set of StringVariableReplicas that are newly active. (i.e., if x was
+     * Record that x depends on y, and return the set of StringSolutionVariables that are newly active. (i.e., if x was
      * active, then y needs to be active, and transitively, any SVR that y depends on).
      *
      * @param x
      * @param y
      * @return
      */
-    public Set<StringVariableReplica> recordDependency(StringVariableReplica x, StringVariableReplica y) {
+    public Set<StringSolutionVariable> recordDependency(StringSolutionVariable x, StringSolutionVariable y) {
         setMapPut(this.dependsOn, x, y);
 
         if (isActive(x)) {
@@ -63,46 +63,46 @@ public class StringDependencies {
         }
     }
 
-    public boolean isActive(StringVariableReplica x) {
+    public boolean isActive(StringSolutionVariable x) {
         // return this.active.contains(x);
         return true;
     }
 
-    public Set<StringVariableReplica> activate(StringVariableReplica x) {
-        Set<StringVariableReplica> newlyActive = new HashSet<>();
+    public Set<StringSolutionVariable> activate(StringSolutionVariable x) {
+        Set<StringSolutionVariable> newlyActive = new HashSet<>();
         activate(x, newlyActive);
         return newlyActive;
     }
 
-    private void activate(StringVariableReplica x, Set<StringVariableReplica> newlyActive) {
+    private void activate(StringSolutionVariable x, Set<StringSolutionVariable> newlyActive) {
         if (this.active.add(x)) {
             newlyActive.add(x);
             if (this.dependsOn.containsKey(x)) {
-                for (StringVariableReplica y : this.dependsOn.get(x)) {
+                for (StringSolutionVariable y : this.dependsOn.get(x)) {
                     activate(y, newlyActive);
                 }
             }
         }
     }
 
-    public Set<StringVariableReplica> getActiveSet() {
+    public Set<StringSolutionVariable> getActiveSet() {
         return this.active;
     }
 
-    public void recordStatementDefineDependency(StringVariableReplica v, StmtAndContext sac) {
+    public void recordStatementDefineDependency(StringSolutionVariable v, StmtAndContext sac) {
         setMapPut(this.definedBy, v, sac);
     }
 
-    public void recordStatementUseDependency(StringVariableReplica v, StmtAndContext sac) {
+    public void recordStatementUseDependency(StringSolutionVariable v, StmtAndContext sac) {
         setMapPut(this.usedBy, v, sac);
     }
 
-    public Set<StmtAndContext> getDefinedBy(StringVariableReplica v) {
+    public Set<StmtAndContext> getDefinedBy(StringSolutionVariable v) {
         Logger.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.definedBy, v));
         return setMapGet(this.definedBy, v);
     }
 
-    public Set<StmtAndContext> getUsedBy(StringVariableReplica v) {
+    public Set<StmtAndContext> getUsedBy(StringSolutionVariable v) {
         return setMapGet(this.usedBy, v);
     }
 
@@ -124,17 +124,17 @@ public class StringDependencies {
         }
     }
 
-    public void printSVRDependencyTree(StringVariableReplica svr, StringSolution sc) {
+    public void printSVRDependencyTree(StringSolutionVariable svr, StringSolution sc) {
         System.err.println("Dependency Tree for : " + svr + " = " + sc.getAStringFor(svr));
         printDependencies("  ", svr, sc);
     }
 
-    private void printDependencies(String prefix, StringVariableReplica svr, StringSolution sc) {
-        for (StringVariableReplica dep : nullElim(this.dependsOn.get(svr), new HashSet<StringVariableReplica>())) {
+    private void printDependencies(String prefix, StringSolutionVariable svr, StringSolution sc) {
+        for (StringSolutionVariable dep : nullElim(this.dependsOn.get(svr), new HashSet<StringSolutionVariable>())) {
             System.err.println(prefix + dep + " = " + sc.getAStringFor(dep));
             printDependencies(prefix + "  ", dep, sc);
         }
-        if (nullElim(this.dependsOn.get(svr), new HashSet<StringVariableReplica>()).isEmpty()) {
+        if (nullElim(this.dependsOn.get(svr), new HashSet<StringSolutionVariable>()).isEmpty()) {
             for (StmtAndContext sac : nullElim(this.definedBy.get(svr), new HashSet<StmtAndContext>())) {
                 System.err.println(prefix + "definedBy: " + sac);
             }

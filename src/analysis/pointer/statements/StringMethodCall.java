@@ -105,14 +105,14 @@ public class StringMethodCall extends StringStatement {
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
             g.recordStringStatementUseDependency(argumentSVRs.get(1), originator);
 
-            newDelta.combine(g.recordStringVariableDependency(receiverDefSVR, receiverUseSVR));
-            newDelta.combine(g.recordStringVariableDependency(receiverDefSVR, argumentSVRs.get(1)));
+            newDelta.combine(g.recordStringSolutionVariableDependency(receiverDefSVR, receiverUseSVR));
+            newDelta.combine(g.recordStringSolutionVariableDependency(receiverDefSVR, argumentSVRs.get(1)));
 
             AString receiverAString = g.getAStringFor(receiverUseSVR);
             AString argumentAString = g.getAStringFor(argumentSVRs.get(1));
 
             AString newSIK = receiverAString.concat(argumentAString);
-            newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
+            newDelta.combine(g.stringSolutionVariableReplicaJoinAt(receiverDefSVR, newSIK));
             return newDelta;
         }
         case toStringM: {
@@ -122,9 +122,9 @@ public class StringMethodCall extends StringStatement {
 
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
 
-            newDelta.combine(g.recordStringVariableDependency(resultSVR, receiverUseSVR));
+            newDelta.combine(g.recordStringSolutionVariableDependency(resultSVR, receiverUseSVR));
 
-            newDelta.combine(g.stringVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
+            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
 
             return newDelta;
         }

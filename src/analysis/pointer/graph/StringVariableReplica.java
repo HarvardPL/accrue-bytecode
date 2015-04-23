@@ -5,7 +5,7 @@ import analysis.pointer.registrar.strings.StringVariable;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
 
-public class StringVariableReplica implements PointsToGraphNode {
+public class StringVariableReplica implements PointsToGraphNode, StringSolutionVariable {
 
     private final Context context;
     private final StringVariable local;
