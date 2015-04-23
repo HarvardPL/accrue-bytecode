@@ -159,6 +159,7 @@ public class StatementRegistrar {
     private final Map<IMethod, VariableIndex> replacedVariableMap = new LinkedHashMap<>();
 
     private final Map<IMethod, FlowSensitiveStringVariableFactory> stringVariableFactoryMap = new HashMap<>();
+
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
      * points-to graph.
@@ -241,7 +242,6 @@ public class StatementRegistrar {
             debugPrint(m, "\n-------");
 
             FlowSensitiveStringVariableFactory stringVariableFactory = getOrCreateStringVariableFactory(m, types);
-
 
             debugPrint(m, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
             // Add edges from formal summary nodes to the local variables representing the method parameters
@@ -888,15 +888,17 @@ public class StatementRegistrar {
     }
 
     private void createStaticOrSpecialMethodCallStringEscape(SSAInvokeInstruction i, IR ir,
-                                              FlowSensitiveStringVariableFactory stringVariableFactory,
-                                              TypeRepository types, PrettyPrinter pp, IMethod resolvedCallee) {
+                                                             FlowSensitiveStringVariableFactory stringVariableFactory,
+                                                             TypeRepository types, PrettyPrinter pp,
+                                                             IMethod resolvedCallee) {
         MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee, types);
         StringVariable returnedVariable;
         StringVariable returnToVariable;
         if (summary.getRet() == null) {
             returnedVariable = null;
             returnToVariable = null;
-        } else {
+        }
+        else {
             returnedVariable = summary.getRet();
             returnToVariable = stringVariableFactory.getOrCreateLocalDef(i,
                                                                          i.getReturnValue(0),
@@ -909,7 +911,11 @@ public class StatementRegistrar {
         ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
         for (int j = 0; j < ir.getMethod().getNumberOfParameters(); ++j) {
             if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp);
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i,
+                                                                                    i.getUse(j),
+                                                                                    ir.getMethod(),
+                                                                                    types,
+                                                                                    pp);
                 StringVariable parameter = summary.getFormals().get(j);
                 assert parameter != null;
                 OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
@@ -1598,10 +1604,9 @@ public class StatementRegistrar {
         FlowSensitiveStringVariableFactory stringVariableFactory = this.getOrCreateStringVariableFactory(method, types);
         MethodStringSummary summary = this.methodStringSummaries.get(method);
         if (summary == null) {
-            return this.methodStringSummaries.putIfAbsent(method, MethodStringSummary.make(stringVariableFactory,
-                                                                                           method,
-                                                                                           ir,
-                                                                                           types));
+            summary = MethodStringSummary.make(stringVariableFactory, method, ir, types);
+            MethodStringSummary previous = this.methodStringSummaries.putIfAbsent(method, summary);
+            return previous == null ? summary : previous;
         }
         else {
             return summary;
