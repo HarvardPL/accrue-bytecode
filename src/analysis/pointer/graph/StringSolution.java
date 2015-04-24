@@ -3,7 +3,6 @@ package analysis.pointer.graph;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.ReflectiveHAF;
@@ -24,6 +23,12 @@ public class StringSolution {
      */
     private final ConcurrentMap<StringSolutionVariable, AString> map;
 
+    /**
+     * If s1 ∈ upperBounds.get(s2), then s1 must always be an upper bound of s2. So if s2 changes, then we may need to
+     * update s1.
+     */
+    private final ConcurrentMap<StringSolutionVariable, Set<StringSolutionVariable>> upperBounds;
+
     private final ReflectiveHAF haf;
     private final DependencyRecorder depRecorder;
 
@@ -40,6 +45,7 @@ public class StringSolution {
         this.haf = haf;
         this.depRecorder = depRecorder;
         this.map = AnalysisUtil.createConcurrentHashMap();
+        this.upperBounds = AnalysisUtil.createConcurrentHashMap();
     }
 
     /* Logic */
@@ -53,64 +59,96 @@ public class StringSolution {
             return shat;
         }
     }
-
     public StringSolutionDelta joinAt(StringSolutionVariable svr, AString shat) {
-        if (this.isActive(svr)) {
-            // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
-            AString current = this.map.get(svr);
-            if (current == null) {
-                AString existing = this.map.putIfAbsent(svr, shat);
-                if (existing == null) {
-                    // we definitely updated.
-                    StringSolutionDelta d = StringSolutionDelta.makeEmpty(this);
-                    d.addUpdated(svr);
-                    return d;
-                }
+        StringSolutionDelta delta = StringSolutionDelta.makeEmpty(this);
+        joinToVarAndBoundingVars(svr, shat, delta);
+        return delta;
+    }
+
+    /**
+     * Increase svr to shat, and, if that was a change, propagate that to the variables that must be upper bounds
+     *
+     * @param svr
+     * @param shat
+     * @return
+     */
+    private void joinToVarAndBoundingVars(StringSolutionVariable svr, AString shat,
+                                                         StringSolutionDelta delta) {
+        assert this.isActive(svr);
+        // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
+        AString current = this.map.get(svr);
+        AString newval = null;
+        boolean updated = false;
+        if (current == null) {
+            AString existing = this.map.putIfAbsent(svr, shat);
+            if (existing == null) {
+                // we definitely updated.
+                updated = true;
+                newval = shat;
+            }
+            else {
                 // someone beat us to it
                 current = existing;
             }
-
+        }
+        if (!updated) {
             while (true) {
-                AString newval = current.join(shat);
+                newval = current.join(shat);
                 if (newval.equals(current)) {
                     // We didn't change the AString for svr.
-                    return StringSolutionDelta.makeEmpty(this);
+                    return;
                 }
                 // try to change it
                 if (this.map.replace(svr, current, newval)) {
                     // We successfully changed it!
-                    StringSolutionDelta d = StringSolutionDelta.makeEmpty(this);
-                    d.addUpdated(svr);
-                    return d;
+                    updated = true;
+                    break;
                 }
 
                 // someone else snuck in. Try again.
                 current = this.map.get(svr);
             }
         }
-        else {
-            Logger.println("[joinAt] Inactive variable: " + svr);
-            return StringSolutionDelta.makeEmpty(this);
+
+        assert newval != null;
+        // if we get to here then we successfully changed it to newval.
+        delta.addUpdated(svr);
+
+        // Here, we need to propagate newval to variables that are upper bounds.
+        Set<StringSolutionVariable> ub = this.upperBounds.get(svr);
+        if (ub != null) {
+            for (StringSolutionVariable u : ub) {
+                this.joinToVarAndBoundingVars(u, newval, delta);
+            }
         }
     }
 
+    /**
+     * Add the fact that svr1 should (always) be an upper bound of svr2.
+     *
+     * @param svr1
+     * @param svr2
+     * @return
+     */
     public StringSolutionDelta upperBounds(StringSolutionVariable svr1, StringSolutionVariable svr2) {
-        if (this.isActive(svr1)) {
-            if (this.map.containsKey(svr2)) {
-                return this.joinAt(svr1, this.map.get(svr2));
-            }
-            else {
-                return StringSolutionDelta.makeEmpty(this);
+        assert this.isActive(svr1) && this.isActive(svr2);
+        Set<StringSolutionVariable> ub = this.upperBounds.get(svr2);
+        if (ub == null) {
+            ub = AnalysisUtil.createConcurrentSet();
+            Set<StringSolutionVariable> existing = this.upperBounds.putIfAbsent(svr2, ub);
+            if (existing != null) {
+                ub = existing;
             }
         }
-        else {
-            return StringSolutionDelta.makeEmpty(this);
+        if (ub.add(svr1)) {
+            // This is a new upper bound, so make sure it is satisfied by raising the level of svr1
+            AString a = this.map.get(svr2);
+            if (a != null) {
+                return this.joinAt(svr1, a);
+            }
         }
+        return StringSolutionDelta.makeEmpty(this);
     }
-
-    //    public StringSolutionDelta recordDependency(StringSolutionVariable x, StringSolutionVariable y) {
-    //        return StringSolutionDelta.makeWithNeedDefs(this, this.depRecorder.recordDependency(x, y));
-    //    }
 
     public StringSolutionDelta activate(StringSolutionVariable x) {
         StringSolutionDelta d = StringSolutionDelta.makeEmpty(this);
