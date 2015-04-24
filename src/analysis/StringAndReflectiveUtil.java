@@ -12,9 +12,9 @@ import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.strings.Atom;
 
 public class StringAndReflectiveUtil {
-    private static final IClass JavaLangStringIClass = AnalysisUtil.getStringClass();
-    private static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
-                                                                                                               TypeName.string2TypeName("Ljava/lang/StringBuilder")));
+    public static final IClass JavaLangStringIClass = AnalysisUtil.getStringClass();
+    public static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                                                              TypeName.string2TypeName("Ljava/lang/StringBuilder")));
 
     private final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                 TypeName.string2TypeName("Ljava/lang/String"));

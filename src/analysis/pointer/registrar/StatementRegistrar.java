@@ -740,7 +740,7 @@ public class StatementRegistrar {
                                                                     svarguments));
             }
             else {
-                this.createStaticOrSpecialMethodCallString(i, ir, stringVariableFactory, pp, resolvedCallee);
+                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, pp, resolvedCallee);
             }
         }
         else if (i.isSpecial()) {
@@ -766,7 +766,7 @@ public class StatementRegistrar {
                 this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
             }
             else {
-                this.createStaticOrSpecialMethodCallString(i, ir, stringVariableFactory, pp, resolvedCallee);
+                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, pp, resolvedCallee);
             }
 
         }
@@ -831,10 +831,14 @@ public class StatementRegistrar {
         else {
             returnToVariable = null;
         }
+
         ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters = new ArrayList<>();
-        for (int j = 0; j < ir.getMethod().getNumberOfParameters(); ++j) {
-            if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, ir.getParameter(j));
+        assert i.getNumberOfParameters() == declaredTarget.getNumberOfParameters() : "params == args";
+        assert i.getNumberOfUses() == declaredTarget.getNumberOfParameters() : "use == params";
+
+        for (int j = 0; j < declaredTarget.getNumberOfParameters(); ++j) {
+            if (StringAndReflectiveUtil.isStringType(declaredTarget.getParameterType(j))) {
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 OrderedPair<StringVariable, Integer> pair = new OrderedPair<>(argument, j);
                 stringArgumentAndParameters.add(pair);
             }
@@ -847,10 +851,11 @@ public class StatementRegistrar {
                                                                     types));
     }
 
-    private void createStaticOrSpecialMethodCallString(SSAInvokeInstruction i, IR ir,
+    private void createStaticOrSpecialMethodCallString(SSAInvokeInstruction i, IMethod caller,
                                                        FlowSensitiveStringVariableFactory stringVariableFactory,
                                                        PrettyPrinter pp, IMethod resolvedCallee) {
         MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee);
+        IR calleeIR = AnalysisUtil.getIR(resolvedCallee);
         StringVariable formalReturn;
         StringVariable actualReturn;
         if (summary.getRet() == null) {
@@ -866,7 +871,7 @@ public class StatementRegistrar {
         ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
         for (int j = 0; j < resolvedCallee.getNumberOfParameters(); ++j) {
             if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, ir.getParameter(j));
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, calleeIR.getParameter(j));
                 StringVariable parameter = summary.getFormals().get(j);
                 assert parameter != null;
                 OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
@@ -874,7 +879,7 @@ public class StatementRegistrar {
             }
         }
         this.addStringStatement(stmtFactory.staticOrSpecialMethodCallString(i,
-                                                                            ir.getMethod(),
+                                                                            caller,
                                                                             stringArgumentAndParameters,
                                                                             formalReturn,
                                                                             actualReturn));

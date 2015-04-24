@@ -10,6 +10,7 @@ import analysis.StringAndReflectiveUtil;
 import analysis.pointer.registrar.strings.StringVariable;
 import analysis.pointer.registrar.strings.StringVariableFactory;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -71,15 +72,17 @@ public final class FlowSensitiveStringVariableFactory {
 
     public StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript) {
         StringVariable maybeValue = localsCache.get(new OrderedPair<>(varNum, sensitizingSubscript));
+        IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(typeRepo.getType(varNum));
         if (maybeValue == null) {
-            if (typeRepo.getType(varNum).equals(TypeReference.JavaLangString)) {
+            if (klass.equals(StringAndReflectiveUtil.JavaLangStringIClass)) {
                 return StringVariableFactory.makeLocalString(method, varNum, sensitizingSubscript);
             }
-            else if (typeRepo.getType(varNum).equals(TypeReference.JavaLangStringBuilder)) {
+            else if (klass.equals(StringAndReflectiveUtil.JavaLangStringBuilderIClass)) {
                 return StringVariableFactory.makeLocalStringBuilder(method, varNum, sensitizingSubscript);
             }
             else {
-                throw new RuntimeException("String variables may only be created for objects of class String or StringBuilder");
+                throw new RuntimeException("String variables may only be created for objects "
+                        + "of class String or StringBuilder, given: " + klass);
             }
         }
         else {
