@@ -271,10 +271,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         // first gather up all the string statements that need to be processed.
         Set<StmtAndContext> reprocess = new HashSet<>();
         for (StringSolutionVariable v : delta.getStringConstraintDelta().getNewlyActivated()) {
-            reprocess.addAll(stringDependencies.getWrittenBy(v));
+            reprocess.addAll(stringDependencies.getWriteTo(v));
         }
         for (StringSolutionVariable v : delta.getStringConstraintDelta().getUpdated()) {
-            reprocess.addAll(stringDependencies.getReadBy(v));
+            reprocess.addAll(stringDependencies.getReadFrom(v));
         }
         // now process them...
         for (StmtAndContext depSaC : reprocess) {

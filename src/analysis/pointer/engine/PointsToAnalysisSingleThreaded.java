@@ -443,10 +443,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         Set<StmtAndContext> reprocess = new LinkedHashSet<>();
         for (StringSolutionVariable v : changes.getStringConstraintDelta().getNewlyActivated()) {
-            reprocess.addAll(stringDependencies.getWrittenBy(v));
+            reprocess.addAll(stringDependencies.getWriteTo(v));
         }
         for (StringSolutionVariable v : changes.getStringConstraintDelta().getUpdated()) {
-            reprocess.addAll(stringDependencies.getReadBy(v));
+            reprocess.addAll(stringDependencies.getReadFrom(v));
         }
         // now process them...
         for (StmtAndContext depSaC : reprocess) {

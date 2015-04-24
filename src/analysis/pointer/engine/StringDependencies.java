@@ -57,12 +57,12 @@ public class StringDependencies {
         setMapPut(this.readBy, v, sac);
     }
 
-    public Set<StmtAndContext> getWrittenBy(StringSolutionVariable v) {
+    public Set<StmtAndContext> getWriteTo(StringSolutionVariable v) {
         Logger.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.writtenBy, v));
         return setMapGet(this.writtenBy, v);
     }
 
-    public Set<StmtAndContext> getReadBy(StringSolutionVariable v) {
+    public Set<StmtAndContext> getReadFrom(StringSolutionVariable v) {
         return setMapGet(this.readBy, v);
     }
 
