@@ -2,6 +2,7 @@
 # nohup bin/runSingletonTests.sh > wala$(date +"%Y.%m.%d.%H.%M.%S").txt 2> walaerr$(date +"%Y.%m.%d.%H.%M.%S").txt &                                                                                                                                                                           
 
 max=10
+numThreads=16
 
     # -useSingleAllocForGenEx
     # -useSingleAllocForImmutableWrappers
@@ -23,7 +24,7 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 1 2 4 8 16 32; do 
+for threads in $numThreads; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
@@ -57,7 +58,7 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 1 2 4 8 16 32; do 
+for threads in $numThreads; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
@@ -91,7 +92,7 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 1 2 4 8 16 32; do 
+for threads in $numThreads; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
@@ -125,7 +126,7 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 1 2 4 8 16 32; do 
+for threads in $numThreads; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
@@ -159,7 +160,7 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 1 2 4 8 16 32; do 
+for threads in $numThreads; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
@@ -193,7 +194,7 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 1 2 4 8 16 32; do 
+for threads in $numThreads; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
