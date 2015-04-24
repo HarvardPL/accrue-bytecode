@@ -873,7 +873,8 @@ public class StatementRegistrar {
                 stringArgumentAndParameters.add(pair);
             }
         }
-        this.addStringStatement(stmtFactory.staticOrSpecialMethodCallString(ir.getMethod(),
+        this.addStringStatement(stmtFactory.staticOrSpecialMethodCallString(i,
+                                                                            ir.getMethod(),
                                                                             stringArgumentAndParameters,
                                                                             formalReturn,
                                                                             actualReturn));

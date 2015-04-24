@@ -728,9 +728,11 @@ public class StatementFactory {
         return new GetPropertyStatement(callSite, method, declaredTarget, svresult, svarguments);
     }
 
-    public StringStatement staticOrSpecialMethodCallString(IMethod method,
+    public StringStatement staticOrSpecialMethodCallString(SSAInstruction i,
+                                                           IMethod method,
                                                            List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
                                                            StringVariable formalReturn, StringVariable actualReturn) {
+        assert i != null;
         /* NB: both returnedVariable and returnToVariable could be null. Nullness */
         /* indicates the return value is either ignored or not String-like */
         assert stringArgumentAndParameters != null;
@@ -740,7 +742,8 @@ public class StatementFactory {
             assert pair.snd() != null;
         }
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(method,
+        assert stringStatementNeverCreatedBefore(new StatementKey(i,
+                                                                  method,
                                                                   stringArgumentAndParameters,
                                                                   formalReturn,
                                                                   actualReturn));
