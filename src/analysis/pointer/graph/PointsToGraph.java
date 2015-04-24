@@ -147,7 +147,7 @@ public final class PointsToGraph {
      * is not yet correct. There are a number of concurrency issues. It will work in a single threaded setting, but not
      * concurrently.
      */
-    static final boolean USE_CYCLE_COLLAPSING = false;
+    static final boolean USE_CYCLE_COLLAPSING = true;
 
     /* ***************************************************************************
     *
