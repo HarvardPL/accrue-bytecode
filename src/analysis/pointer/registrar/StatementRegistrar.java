@@ -864,8 +864,8 @@ public class StatementRegistrar {
             assert actualReturn != null;
         }
         ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
-        for (int j = 0; j < ir.getMethod().getNumberOfParameters(); ++j) {
-            if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
+        for (int j = 0; j < resolvedCallee.getNumberOfParameters(); ++j) {
+            if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
                 StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, ir.getParameter(j));
                 StringVariable parameter = summary.getFormals().get(j);
                 assert parameter != null;
