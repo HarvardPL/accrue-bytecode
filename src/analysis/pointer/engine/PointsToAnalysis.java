@@ -122,6 +122,4 @@ public abstract class PointsToAnalysis {
             return this.stmt + " in " + this.context;
         }
     }
-
-    abstract public PointsToGraph solveAndRegister(StatementRegistrar registrar);
 }

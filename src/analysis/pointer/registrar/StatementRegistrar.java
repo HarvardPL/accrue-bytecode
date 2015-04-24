@@ -11,7 +11,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 
 import signatures.Signatures;
 import types.TypeRepository;
@@ -65,7 +64,7 @@ public class StatementRegistrar {
     /**
      * Map from method signature to nodes representing formals and returns
      */
-    private final ConcurrentMap<IMethod, MethodSummaryNodes> methods;
+    private final Map<IMethod, MethodSummaryNodes> methods;
     /**
      * Entry point for the code being analyzed
      */
@@ -73,7 +72,7 @@ public class StatementRegistrar {
     /**
      * Map from method to the points-to statements generated from instructions in that method
      */
-    private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
+    private final Map<IMethod, Set<PointsToStatement>> statementsForMethod;
 
     /**
      * The total number of statements
@@ -126,17 +125,17 @@ public class StatementRegistrar {
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
      */
-    private final ConcurrentMap<TypeReference, ReferenceVariable> singletonReferenceVariables;
+    private final Map<TypeReference, ReferenceVariable> singletonReferenceVariables;
 
     /**
      * Create a single copy of java.lang.Class per type
      */
-    private final ConcurrentMap<TypeReference, ReferenceVariable> classReferenceVariables;
+    private final Map<TypeReference, ReferenceVariable> classReferenceVariables;
 
     /**
      * Methods we have already added statements for
      */
-    private final Set<IMethod> registeredMethods = AnalysisUtil.createConcurrentSet();
+    private final Set<IMethod> registeredMethods = new LinkedHashSet<>();
     /**
      * Factory for finding and creating reference variable (local variable and static fields)
      */
@@ -181,11 +180,11 @@ public class StatementRegistrar {
                               boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
                               boolean useSingleAllocForSwing,
                               boolean useDefaultNativeSignatures) {
-        this.methods = AnalysisUtil.createConcurrentHashMap();
-        this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
-        this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
-        this.classReferenceVariables = AnalysisUtil.createConcurrentHashMap();
-        this.handledStringLit = AnalysisUtil.createConcurrentSet();
+        this.methods = new LinkedHashMap<>();
+        this.statementsForMethod = new LinkedHashMap<>();
+        this.singletonReferenceVariables = new LinkedHashMap<>();
+        this.classReferenceVariables = new LinkedHashMap<>();
+        this.handledStringLit = new LinkedHashSet<>();
         this.entryPoint = AnalysisUtil.getFakeRoot();
         this.stmtFactory = factory;
         this.useDefaultSignatures = useDefaultNativeSignatures;
@@ -277,11 +276,6 @@ public class StatementRegistrar {
         return false;
 
     }
-
-    /**
-     * A listener that will get notified of newly created statements.
-     */
-    private StatementListener stmtListener = null;
 
     /**
      * Total number of statements that are removed when duplicate statements are removed
@@ -836,7 +830,7 @@ public class StatementRegistrar {
         MethodSummaryNodes msn = this.methods.get(method);
         if (msn == null) {
             msn = new MethodSummaryNodes(method);
-            MethodSummaryNodes ex = this.methods.putIfAbsent(method, msn);
+            MethodSummaryNodes ex = this.methods.put(method, msn);
             if (ex != null) {
                 msn = ex;
             }
@@ -912,8 +906,8 @@ public class StatementRegistrar {
         IMethod m = s.getMethod();
         Set<PointsToStatement> ss = this.statementsForMethod.get(m);
         if (ss == null) {
-            ss = AnalysisUtil.createConcurrentSet();
-            Set<PointsToStatement> ex = this.statementsForMethod.putIfAbsent(m, ss);
+            ss = new LinkedHashSet<>();//            new LinkedHashSet<>();
+            Set<PointsToStatement> ex = this.statementsForMethod.put(m, ss);
             if (ex != null) {
                 ss = ex;
             }
@@ -921,10 +915,6 @@ public class StatementRegistrar {
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         if (ss.add(s)) {
             this.size++;
-        }
-        if (stmtListener != null) {
-            // let the listener now a statement has been added.
-            stmtListener.newStatement(s);
         }
 
         if ((this.size + StatementRegistrar.removed) % 100000 == 0) {
@@ -1076,7 +1066,7 @@ public class StatementRegistrar {
         ReferenceVariable rv = this.singletonReferenceVariables.get(varType);
         if (rv == null) {
             rv = rvFactory.createSingletonReferenceVariable(varType);
-            ReferenceVariable existing = this.singletonReferenceVariables.putIfAbsent(varType, rv);
+            ReferenceVariable existing = this.singletonReferenceVariables.put(varType, rv);
             if (existing != null) {
                 rv = existing;
             }
@@ -1104,7 +1094,7 @@ public class StatementRegistrar {
         ReferenceVariable rv = this.classReferenceVariables.get(varType);
         if (rv == null) {
             rv = rvFactory.createClassReferenceVariable(varType);
-            ReferenceVariable existing = this.classReferenceVariables.putIfAbsent(varType, rv);
+            ReferenceVariable existing = this.classReferenceVariables.put(varType, rv);
             if (existing != null) {
                 rv = existing;
             }
@@ -1343,19 +1333,6 @@ public class StatementRegistrar {
         }
     }
 
-    public interface StatementListener {
-        /**
-         * Called when a new statement is added to the registrar.
-         *
-         * @param stmt
-         */
-        void newStatement(PointsToStatement stmt);
-    }
-
-    public void setStatementListener(StatementListener stmtListener) {
-        this.stmtListener = stmtListener;
-    }
-
     public IMethod getEntryPoint() {
         return this.entryPoint;
     }
@@ -1366,7 +1343,7 @@ public class StatementRegistrar {
 
     /**
      * Whether to use a single allocation site for allocations of the given class
-     * 
+     *
      * @param klass class being allocated
      * @return true if a single allocation site should be used
      */
@@ -1395,7 +1372,7 @@ public class StatementRegistrar {
     /**
      * If the class is has a single allocation site then return the singleton reference variable representing a newly
      * allocated object of that type. Otherwise return null.
-     * 
+     *
      * @param klass class to check
      * @return the singleton reference variable or null if the class is not a singleton
      */

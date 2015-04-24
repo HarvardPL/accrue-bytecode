@@ -136,17 +136,6 @@ public final class AccrueAnalysisOptions {
     private String className;
 
     /**
-     * If true then register points-to statements during the points-to analysis. If false (or not set) then register
-     * them before the points-to analysis. The latter will register many more statements since there is less information
-     * about the types of the receivers of virtual methods, but is thread safe to use with the multithreaded points-to
-     * analysis.
-     */
-    @Parameter(
-        names = { "-online" },
-        description = "Whether to register the points-to statements during points-to analysis or before points-to analysis")
-    private boolean online = false;
-
-    /**
      * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
      */
@@ -333,10 +322,6 @@ public final class AccrueAnalysisOptions {
 
     public Integer getFileLevel() {
         return fileLevel;
-    }
-
-    public boolean registerOnline() {
-        return online;
     }
 
     public String getEntryPoint() {

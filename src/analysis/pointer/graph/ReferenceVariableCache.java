@@ -1,7 +1,6 @@
 package analysis.pointer.graph;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -43,7 +42,7 @@ public class ReferenceVariableCache {
     /**
      * Map from method signature to nodes representing formals and returns
      */
-    private final ConcurrentMap<IMethod, MethodSummaryNodes> methods;
+    private final Map<IMethod, MethodSummaryNodes> methods;
 
     /**
      * Create a cache of reference variables with the given map
@@ -56,8 +55,8 @@ public class ReferenceVariableCache {
      */
     public ReferenceVariableCache(Map<OrderedPair<Integer, IMethod>, ReferenceVariable> locals,
         Map<IMethod, VariableIndex> replacementMap, Map<ArrayContentsKey, ReferenceVariable> arrayContentsTemps,
-        Map<ImplicitThrowKey, ReferenceVariable> implicitThrows, Map<IField, ReferenceVariable> staticFields,
-        ConcurrentMap<IMethod, MethodSummaryNodes> methods) {
+                                  Map<ImplicitThrowKey, ReferenceVariable> implicitThrows,
+                                  Map<IField, ReferenceVariable> staticFields, Map<IMethod, MethodSummaryNodes> methods) {
 
         this.locals = locals;
         this.replacementMap = replacementMap;

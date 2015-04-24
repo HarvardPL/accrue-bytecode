@@ -2,7 +2,6 @@ package analysis.pointer.registrar;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -282,7 +281,8 @@ public class ReferenceVariableFactory {
      *
      * @return Cache of reference variables for each local variable
      */
-    public ReferenceVariableCache getRvCache(Map<IMethod, VariableIndex> replacementMap, ConcurrentMap<IMethod, MethodSummaryNodes> methods) {
+    public ReferenceVariableCache getRvCache(Map<IMethod, VariableIndex> replacementMap,
+                                             Map<IMethod, MethodSummaryNodes> methods) {
         return new ReferenceVariableCache(locals, replacementMap, arrayContentsTemps, implicitThrows, staticFields, methods);
     }
 
