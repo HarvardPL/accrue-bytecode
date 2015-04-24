@@ -1,5 +1,6 @@
 package analysis.pointer.engine;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -15,16 +16,16 @@ public class StringDependencies {
     /**
      * definedBy.get(svr) is the set of StmtAndContexts that define svr.
      */
-    private final ConcurrentMap<StringSolutionVariable, Set<StmtAndContext>> definedBy;
+    private final ConcurrentMap<StringSolutionVariable, Set<StmtAndContext>> writtenBy;
 
     /**
      * usedBy.get(svr) is the set of StmtAndContexts that use svr.
      */
-    private final ConcurrentMap<StringSolutionVariable, Set<StmtAndContext>> usedBy;
+    private final ConcurrentMap<StringSolutionVariable, Set<StmtAndContext>> readBy;
 
-    private StringDependencies() {
-        this.definedBy = AnalysisUtil.createConcurrentHashMap();
-        this.usedBy = AnalysisUtil.createConcurrentHashMap();
+    StringDependencies() {
+        this.writtenBy = AnalysisUtil.createConcurrentHashMap();
+        this.readBy = AnalysisUtil.createConcurrentHashMap();
     }
 
     //    public Set<StringSolutionVariable> activate(StringSolutionVariable x) {
@@ -49,38 +50,41 @@ public class StringDependencies {
     //    }
     //
     public void recordWrite(StringSolutionVariable v, StmtAndContext sac) {
-        setMapPut(this.definedBy, v, sac);
+        setMapPut(this.writtenBy, v, sac);
     }
 
     public void recordRead(StringSolutionVariable v, StmtAndContext sac) {
-        setMapPut(this.usedBy, v, sac);
+        setMapPut(this.readBy, v, sac);
     }
 
     public Set<StmtAndContext> getWrittenBy(StringSolutionVariable v) {
-        Logger.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.definedBy, v));
-        return setMapGet(this.definedBy, v);
+        Logger.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.writtenBy, v));
+        return setMapGet(this.writtenBy, v);
     }
 
-    public Set<StmtAndContext> getUsedBy(StringSolutionVariable v) {
-        return setMapGet(this.usedBy, v);
+    public Set<StmtAndContext> getReadBy(StringSolutionVariable v) {
+        return setMapGet(this.readBy, v);
     }
 
     private static <K, V> void setMapPut(ConcurrentMap<K, Set<V>> m, K k, V v) {
-        if (m.containsKey(k)) {
-            m.get(k).add(v);
+        Set<V> s = m.get(k);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<V> existing = m.putIfAbsent(k, s);
+            if (existing != null) {
+                // someone else put the set in first
+                s = existing;
+            }
         }
-        else {
-            m.put(k, AnalysisUtil.createConcurrentSingletonSet(v));
-        }
+        s.add(v);
     }
 
     private <K, V> Set<V> setMapGet(ConcurrentMap<K, Set<V>> m, K k) {
-        if (m.containsKey(k)) {
-            return m.get(k);
+        Set<V> s = m.get(k);
+        if (s != null) {
+            return s;
         }
-        else {
-            return AnalysisUtil.createConcurrentSet();
-        }
+        return Collections.emptySet();
     }
 
     //    public void printSVRDependencyTree(StringSolutionVariable svr, StringSolution sc) {

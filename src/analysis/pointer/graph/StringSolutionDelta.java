@@ -17,27 +17,6 @@ public class StringSolutionDelta {
         return new StringSolutionDelta(sc);
     }
 
-    public void addUpdated(StringSolutionVariable updatedVar) {
-        this.updated.add(updatedVar);
-
-    }
-
-    public void addNewlyActivated(StringSolutionVariable newlyActivatedVar) {
-        this.newlyActivated.add(newlyActivatedVar);
-    }
-
-    //    public static final StringSolutionDelta makeWithNeedUses(StringSolution sc, Set<StringSolutionVariable> needUses) {
-    //        return new StringSolutionDelta(sc, needUses, AnalysisUtil.<StringSolutionVariable> createConcurrentSet());
-    //    }
-    //
-    //    public static final StringSolutionDelta makeWithNeedDefs(StringSolution sc, Set<StringSolutionVariable> needDefs) {
-    //        return new StringSolutionDelta(sc, AnalysisUtil.<StringSolutionVariable> createConcurrentSet(), needDefs);
-    //    }
-
-    //    public static final StringSolutionDelta make(StringSolution sc, Set<StringSolutionVariable> needUses,
-    //                                                 Set<StringSolutionVariable> needDefs) {
-    //        return new StringSolutionDelta(sc, needUses, needDefs);
-    //    }
 
     /* Constructors */
 
@@ -66,6 +45,22 @@ public class StringSolutionDelta {
         this.updated.addAll(that.updated);
     }
 
+    public void addUpdated(StringSolutionVariable updatedVar) {
+        this.updated.add(updatedVar);
+
+    }
+
+    public void addNewlyActivated(StringSolutionVariable newlyActivatedVar) {
+        this.newlyActivated.add(newlyActivatedVar);
+    }
+
+    public Set<StringSolutionVariable> getNewlyActivated() {
+        return this.newlyActivated;
+    }
+
+    public Set<StringSolutionVariable> getUpdated() {
+        return this.updated;
+    }
     //    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
     //        Set<StmtAndContext> s = AnalysisUtil.createConcurrentSet();
     //

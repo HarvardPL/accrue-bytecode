@@ -18,6 +18,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.StringSolutionVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ConstraintStatement;
@@ -39,6 +40,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
+    /**
+     * An object that helps us track dependencies for the string analysis
+     */
+    private StringDependencies stringDependencies = new StringDependencies();
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
      * are no changes.
@@ -119,6 +125,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     execService.submitTask(newSaC);
                 }
+            }
+
+            @Override
+            public void recordRead(StringSolutionVariable v, StmtAndContext sac) {
+                stringDependencies.recordRead(v, sac);
+            }
+
+            @Override
+            public void recordWrite(StringSolutionVariable v, StmtAndContext sac) {
+                stringDependencies.recordWrite(v, sac);
             }
         };
 
@@ -250,8 +266,15 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 execService.submitTask(depSaC, changes);
             }
         }
-        for (StmtAndContext depSaC : changes.getStatementsNeededByStringUpdates()) {
-            execService.submitTask(depSaC, changes);
+        for (StringSolutionVariable v : delta.getStringConstraintDelta().getNewlyActivated()) {
+            for (StmtAndContext depSaC : stringDependencies.getWrittenBy(v)) {
+                execService.submitTask(depSaC, changes);
+            }
+        }
+        for (StringSolutionVariable v : delta.getStringConstraintDelta().getUpdated()) {
+            for (StmtAndContext depSaC : stringDependencies.getReadBy(v)) {
+                execService.submitTask(depSaC, changes);
+            }
         }
     }
 
