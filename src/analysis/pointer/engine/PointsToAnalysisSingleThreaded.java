@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -20,6 +21,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.StringSolutionVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -61,6 +63,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
+
+    /**
+     * An object that helps us track dependencies for the string analysis
+     */
+    private StringDependencies stringDependencies = new StringDependencies();
 
     /**
      * New pointer analysis engine
@@ -220,6 +227,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                         lines2++;
                     }
                 }
+            }
+
+            @Override
+            public void recordRead(StringSolutionVariable v, StmtAndContext sac) {
+                stringDependencies.recordRead(v, sac);
+            }
+
+            @Override
+            public void recordWrite(StringSolutionVariable v, StmtAndContext sac) {
+                stringDependencies.recordWrite(v, sac);
             }
         };
 
@@ -424,8 +441,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        for (StmtAndContext sac : changes.getStatementsNeededByStringUpdates()) {
-            queue.add(new OrderedPair<>(sac, changes));
+        Set<StmtAndContext> reprocess = new LinkedHashSet<>();
+        for (StringSolutionVariable v : changes.getStringConstraintDelta().getNewlyActivated()) {
+            reprocess.addAll(stringDependencies.getWrittenBy(v));
+        }
+        for (StringSolutionVariable v : changes.getStringConstraintDelta().getUpdated()) {
+            reprocess.addAll(stringDependencies.getReadBy(v));
+        }
+        // now process them...
+        for (StmtAndContext depSaC : reprocess) {
+            queue.add(new OrderedPair<>(depSaC, changes));
         }
     }
 

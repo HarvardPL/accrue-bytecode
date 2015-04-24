@@ -34,8 +34,6 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
 
         g.recordStringStatementUseDependency(vsvr, originator);
 
-        newDelta.combine(g.recordStringSolutionVariableDependency(fsvr, vsvr));
-
         newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(fsvr, vsvr));
 
         return newDelta;

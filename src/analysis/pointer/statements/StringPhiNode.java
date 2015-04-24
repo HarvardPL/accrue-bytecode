@@ -38,7 +38,6 @@ public class StringPhiNode extends StringStatement {
         for (StringVariable dependency : dependencies) {
             StringVariableReplica dependentSVR = new StringVariableReplica(context, dependency);
             g.recordStringStatementUseDependency(dependentSVR, originator);
-            newDelta.combine(g.recordStringSolutionVariableDependency(svr, dependentSVR));
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(svr, dependentSVR));
         }
 

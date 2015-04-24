@@ -48,7 +48,6 @@ public class FieldToLocalStringStatement extends StringStatement {
             ObjectField f = new ObjectField(oIK, this.field);
 
             g.recordStringStatementUseDependency(f, originator);
-            newDelta.combine(g.recordStringSolutionVariableDependency(vSVR, f));
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(vSVR, f));
         }
         return newDelta;

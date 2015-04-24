@@ -2,6 +2,7 @@ package analysis.pointer.engine;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -266,15 +267,18 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 execService.submitTask(depSaC, changes);
             }
         }
+
+        // first gather up all the string statements that need to be processed.
+        Set<StmtAndContext> reprocess = new HashSet<>();
         for (StringSolutionVariable v : delta.getStringConstraintDelta().getNewlyActivated()) {
-            for (StmtAndContext depSaC : stringDependencies.getWrittenBy(v)) {
-                execService.submitTask(depSaC, changes);
-            }
+            reprocess.addAll(stringDependencies.getWrittenBy(v));
         }
         for (StringSolutionVariable v : delta.getStringConstraintDelta().getUpdated()) {
-            for (StmtAndContext depSaC : stringDependencies.getReadBy(v)) {
-                execService.submitTask(depSaC, changes);
-            }
+            reprocess.addAll(stringDependencies.getReadBy(v));
+        }
+        // now process them...
+        for (StmtAndContext depSaC : reprocess) {
+            execService.submitTask(depSaC, changes);
         }
     }
 

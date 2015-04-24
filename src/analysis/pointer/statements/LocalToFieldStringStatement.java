@@ -51,7 +51,6 @@ public class LocalToFieldStringStatement extends StringStatement {
         for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
 
-            newDelta.combine(g.recordStringSolutionVariableDependency(of, vUseSVR));
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(of, vUseSVR));
             // XXX: Hack to deal with escape
             newDelta.combine(g.stringSolutionVariableReplicaJoinAt(vDefSVR, ((ReflectiveHAF) haf).getAStringTop()));

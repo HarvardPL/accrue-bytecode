@@ -65,7 +65,6 @@ public class GetPropertyStatement extends StringStatement {
 
             for (StringVariableReplica argument : argumentsvrs) {
                 g.recordStringStatementUseDependency(argument, originator);
-                newDelta.combine(g.recordStringSolutionVariableDependency(resultsvr, argument));
             }
 
             Logger.push(true);

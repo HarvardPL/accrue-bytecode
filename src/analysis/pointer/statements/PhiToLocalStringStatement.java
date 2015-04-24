@@ -44,7 +44,6 @@ public class PhiToLocalStringStatement extends StringStatement {
 
         //        useRVRs.forEach(useRVR -> newDelta.combine(g.isSuperSetOf(assigneeRVR, useRVR)));
         for (StringVariableReplica useRVR : useRVRs) {
-            newDelta.combine(g.recordStringSolutionVariableDependency(assigneeRVR, useRVR));
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(assigneeRVR, useRVR));
         }
 

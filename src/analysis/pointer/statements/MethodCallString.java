@@ -54,7 +54,6 @@ public abstract class MethodCallString extends StringStatement {
         for (OrderedPair<StringVariableReplica, StringVariableReplica> pair : stringArgumentAndParameterSVRs) {
             g.recordStringStatementUseDependency(pair.snd(), originator);
             g.recordStringStatementDefineDependency(pair.fst(), originator);
-            newDelta.combine(g.recordStringSolutionVariableDependency(pair.snd(), pair.fst()));
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(pair.snd(), pair.fst()));
         }
 
@@ -64,7 +63,6 @@ public abstract class MethodCallString extends StringStatement {
             StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
             g.recordStringStatementDefineDependency(actualReturnSVR, originator);
             g.recordStringStatementUseDependency(formalReturnSVR, originator);
-            newDelta.combine(g.recordStringSolutionVariableDependency(actualReturnSVR, formalReturnSVR));
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(actualReturnSVR, formalReturnSVR));
         }
 

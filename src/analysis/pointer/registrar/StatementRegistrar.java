@@ -1218,21 +1218,20 @@ public class StatementRegistrar {
 
     protected void addStringStatement(StringStatement s) {
         IMethod m = s.getMethod();
-        if (!this.stringStatementsForMethod.containsKey(m)) {
-            this.stringStatementsForMethod.put(m, AnalysisUtil.createConcurrentSingletonSet(s));
+        Set<StringStatement> set = this.stringStatementsForMethod.get(m);
+        if (set == null) {
+            set = new LinkedHashSet<>();
+            this.stringStatementsForMethod.put(m, set);
         }
-        else {
-            boolean changedp = this.stringStatementsForMethod.get(m).add(s);
-            assert changedp : "STATEMENT: " + s + " was already added";
-            if (stmtListener != null) {
-                // XXX: What to do about string statements
-                // stmtListener.newStatement(s);
-            }
-            if (this.stringStatementsForMethod.size() % 100000 == 0) {
-                System.err.println("REGISTERED: " + this.stringStatementsForMethod.size() + " string statements");
-            }
+        boolean changedp = this.stringStatementsForMethod.get(m).add(s);
+        assert changedp : "STATEMENT: " + s + " was already added";
+        if (stmtListener != null) {
+            // XXX: What to do about string statements
+            // stmtListener.newStatement(s);
         }
-
+        if (this.stringStatementsForMethod.size() % 100000 == 0) {
+            System.err.println("REGISTERED: " + this.stringStatementsForMethod.size() + " string statements");
+        }
     }
 
     /**

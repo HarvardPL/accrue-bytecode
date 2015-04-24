@@ -75,7 +75,7 @@ public class ForNameCallStatement extends PointsToStatement {
         Logger.println("[ForNameCallStatement] in method: " + this.getMethod());
         Logger.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
 
-        g.printSVRDependencyTree(nameSVR);
+        //g.printSVRDependencyTree(nameSVR);
 
         changed.combine(g.activateStringSolutionVariable(nameSVR));
 

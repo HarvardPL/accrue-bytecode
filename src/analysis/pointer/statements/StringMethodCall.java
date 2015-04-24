@@ -105,9 +105,6 @@ public class StringMethodCall extends StringStatement {
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
             g.recordStringStatementUseDependency(argumentSVRs.get(1), originator);
 
-            newDelta.combine(g.recordStringSolutionVariableDependency(receiverDefSVR, receiverUseSVR));
-            newDelta.combine(g.recordStringSolutionVariableDependency(receiverDefSVR, argumentSVRs.get(1)));
-
             AString receiverAString = g.getAStringFor(receiverUseSVR);
             AString argumentAString = g.getAStringFor(argumentSVRs.get(1));
 
@@ -121,8 +118,6 @@ public class StringMethodCall extends StringStatement {
             g.recordStringStatementDefineDependency(resultSVR, originator);
 
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
-
-            newDelta.combine(g.recordStringSolutionVariableDependency(resultSVR, receiverUseSVR));
 
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
 
