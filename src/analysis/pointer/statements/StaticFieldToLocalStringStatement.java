@@ -4,6 +4,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
@@ -25,18 +26,35 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
+    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
+                                       StmtAndContext originator, HeapAbstractionFactory haf,
+                                       StatementRegistrar registrar) {
+        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.v));
+    }
+
+    @Override
+    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+        StringVariableReplica vRVR = new StringVariableReplica(context, this.v);
+        StringVariableReplica fRVR = new StringVariableReplica(context, this.f);
+
+        g.recordStringStatementDefineDependency(vRVR, originator);
+
+        g.recordStringStatementUseDependency(fRVR, originator);
+    }
+
+    @Override
+    public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                     PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica vRVR = new StringVariableReplica(context, this.v);
         StringVariableReplica fRVR = new StringVariableReplica(context, this.f);
 
         GraphDelta newDelta = new GraphDelta(g);
 
-        g.recordStringStatementDefineDependency(vRVR, originator);
-
-        g.recordStringStatementUseDependency(fRVR, originator);
-
         newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(vRVR, fRVR));
+
+        System.err.println("[WARNING][StaticFieldToLocalStringStatement] This is actually unsound because "
+                + "the static field may be mutated. This would be fixed by properly handling escaped strings");
 
         return newDelta;
     }

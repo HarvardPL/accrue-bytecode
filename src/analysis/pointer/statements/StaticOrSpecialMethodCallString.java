@@ -7,6 +7,8 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToIterable;
+import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
 
@@ -20,8 +22,8 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     private final StringVariable actualReturn;
 
     public StaticOrSpecialMethodCallString(IMethod method,
-                                  List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
-                                  StringVariable returnedVariable, StringVariable returnToVariable) {
+                                           List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
+                                           StringVariable returnedVariable, StringVariable returnToVariable) {
         super(method);
         this.stringArgumentAndParameters = stringArgumentAndParameters;
         this.formalReturn = returnedVariable;
@@ -29,17 +31,46 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
-        return this.processCall(this.actualReturn,
-                                this.formalReturn,
-                                this.stringArgumentAndParameters,
-                                context,
-                                haf,
-                                g,
-                                delta,
-                                registrar,
-                                originator);
+    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
+        boolean writersAreActive = g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+                                                                                                     this.formalReturn));
+        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringVariableReplica parametersvr = new StringVariableReplica(context, argumentAndParameter.snd());
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(parametersvr);
+        }
+
+        return writersAreActive;
+    }
+
+    @Override
+    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringVariableReplica argumentsvr = new StringVariableReplica(context, argumentAndParameter.fst());
+            StringVariableReplica parametersvr = new StringVariableReplica(context, argumentAndParameter.snd());
+
+            g.recordStringStatementDefineDependency(parametersvr, originator);
+            g.recordStringStatementUseDependency(argumentsvr, originator);
+        }
+
+        assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
+        if (actualReturn != null) {
+            StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
+            StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
+
+            g.recordStringStatementDefineDependency(actualReturnSVR, originator);
+            g.recordStringStatementUseDependency(formalReturnSVR, originator);
+        }
+    }
+
+    @Override
+    public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                     PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
+        return MethodCallString.processCall(this.actualReturn,
+                                            this.formalReturn,
+                                            this.stringArgumentAndParameters,
+                                            context,
+                                            g);
     }
 
     @Override

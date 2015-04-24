@@ -4,12 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import util.OrderedPair;
-import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.StringVariableReplica;
-import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -29,17 +26,15 @@ public abstract class MethodCallString extends StringStatement {
      * @param context Context of this call.
      * @param haf
      * @param g
-     * @param delta
+     * @param pti
      * @param registrar
      * @param originator
      * @return
      */
     protected static GraphDelta processCall(StringVariable actualReturn,
                                             StringVariable formalReturn,
-                                     List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
-                                     Context context,
-                                     HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                     StatementRegistrar registrar, StmtAndContext originator) {
+                                            List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
+                                            Context context, PointsToGraph g) {
         List<OrderedPair<StringVariableReplica, StringVariableReplica>> stringArgumentAndParameterSVRs = new ArrayList<>();
 
         for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
@@ -52,8 +47,6 @@ public abstract class MethodCallString extends StringStatement {
         GraphDelta newDelta = new GraphDelta(g);
 
         for (OrderedPair<StringVariableReplica, StringVariableReplica> pair : stringArgumentAndParameterSVRs) {
-            g.recordStringStatementUseDependency(pair.snd(), originator);
-            g.recordStringStatementDefineDependency(pair.fst(), originator);
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(pair.snd(), pair.fst()));
         }
 
@@ -61,8 +54,6 @@ public abstract class MethodCallString extends StringStatement {
         if (actualReturn != null) {
             StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
             StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
-            g.recordStringStatementDefineDependency(actualReturnSVR, originator);
-            g.recordStringStatementUseDependency(formalReturnSVR, originator);
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(actualReturnSVR, formalReturnSVR));
         }
 

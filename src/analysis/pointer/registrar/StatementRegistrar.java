@@ -548,7 +548,7 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.fieldToLocal(v, o, f, ir.getMethod()));
 
         if (StringAndReflectiveUtil.isStringType(resultType)) {
-            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), pp);
+            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
             this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
         }
     }
@@ -573,7 +573,7 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.staticFieldToLocal(v, f, ir.getMethod()));
 
         if (StringAndReflectiveUtil.isStringType(resultType)) {
-            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), pp);
+            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
             StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
             this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, i.getDeclaredField()
                                                                                     .getDeclaringClass()
@@ -603,8 +603,8 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.localToField(o, f, v, ir.getMethod(), i));
 
         if (StringAndReflectiveUtil.isStringType(valueType)) {
-            StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal(), pp);
-            StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), pp);
+            StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
+            StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
             this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod()));
         }
     }
@@ -629,8 +629,9 @@ public class StatementRegistrar {
 
         if (StringAndReflectiveUtil.isStringType(valueType)) {
             StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
-            StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), pp);
-            this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svv, ir.getMethod()));
+            StringVariable svvuse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
+            StringVariable svvdef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
+            this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svvuse, svvdef, ir.getMethod()));
         }
     }
 
@@ -717,7 +718,7 @@ public class StatementRegistrar {
             if (ForNameCallStatement.isForNameCall(i)) {
                 List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                 for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
                 }
                 this.addStatement(stmtFactory.forNameCall(i.getCallSite(),
                                                           ir.getMethod(),
@@ -729,11 +730,9 @@ public class StatementRegistrar {
             else if (GetPropertyStatement.isGetPropertyCall(i)) {
                 List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                 for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
                 }
-                StringVariable svresult = stringVariableFactory.getOrCreateLocalUse(i,
-                                                                                    i.getReturnValue(0),
-                                                                                    pp);
+                StringVariable svresult = stringVariableFactory.getOrCreateLocalUse(i, i.getReturnValue(0));
                 this.addStringStatement(stmtFactory.getPropertyCall(i.getCallSite(),
                                                                     ir.getMethod(),
                                                                     i.getDeclaredTarget(),
@@ -741,11 +740,7 @@ public class StatementRegistrar {
                                                                     svarguments));
             }
             else {
-                this.createStaticOrSpecialMethodCallString(i,
-                                                                 ir,
-                                                                 stringVariableFactory,
-                                                                 pp,
-                                                                 resolvedCallee);
+                this.createStaticOrSpecialMethodCallString(i, ir, stringVariableFactory, pp, resolvedCallee);
             }
         }
         else if (i.isSpecial()) {
@@ -766,9 +761,7 @@ public class StatementRegistrar {
                                                       exception,
                                                       calleeSummary));
             if (StringAndReflectiveUtil.isStringInitMethod(i.getDeclaredTarget())) {
-                StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i,
-                                                                                         i.getReceiver(),
-                                                                                         pp);
+                StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
 
                 this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
             }
@@ -784,18 +777,12 @@ public class StatementRegistrar {
                 return;
             }
             if (StringAndReflectiveUtil.isStringMethod(i.getDeclaredTarget())) {
-                StringVariable svresult = stringVariableFactory.getOrCreateLocalDef(i,
-                                                                                    i.getReturnValue(0),
-                                                                                    pp);
-                StringVariable svreceiverUse = stringVariableFactory.getOrCreateLocalUse(i,
-                                                                                         i.getReceiver(),
-                                                                                         pp);
-                StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i,
-                                                                                         i.getReceiver(),
-                                                                                         pp);
+                StringVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
+                StringVariable svreceiverUse = stringVariableFactory.getOrCreateLocalUse(i, i.getReceiver());
+                StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
                 List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                 for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
                 }
                 this.addStringStatement(stmtFactory.stringMethodCall(i.getCallSite(),
                                                                      ir.getMethod(),
@@ -833,14 +820,12 @@ public class StatementRegistrar {
     }
 
     private void createVirtualMethodCallString(SSAInvokeInstruction i, IR ir,
-                                                     FlowSensitiveStringVariableFactory stringVariableFactory,
-                                                     TypeRepository types, PrettyPrinter pp,
-                                                     MethodReference declaredTarget, ReferenceVariable receiver) {
+                                               FlowSensitiveStringVariableFactory stringVariableFactory,
+                                               TypeRepository types, PrettyPrinter pp, MethodReference declaredTarget,
+                                               ReferenceVariable receiver) {
         StringVariable returnToVariable;
         if (StringAndReflectiveUtil.isStringType(i.getDeclaredResultType())) {
-            returnToVariable = stringVariableFactory.getOrCreateLocalDef(i,
-                                                                         i.getReturnValue(0),
-                                                                         pp);
+            returnToVariable = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
             assert returnToVariable != null;
         }
         else {
@@ -849,19 +834,17 @@ public class StatementRegistrar {
         ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters = new ArrayList<>();
         for (int j = 0; j < ir.getMethod().getNumberOfParameters(); ++j) {
             if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i,
-                                                                                    i.getUse(j),
-                                                                                    pp);
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 OrderedPair<StringVariable, Integer> pair = new OrderedPair<>(argument, j);
                 stringArgumentAndParameters.add(pair);
             }
         }
         this.addStringStatement(stmtFactory.virtualMethodCallString(ir.getMethod(),
-                                                                          stringArgumentAndParameters,
-                                                                          returnToVariable,
-                                                                          declaredTarget,
-                                                                          receiver,
-                                                                          types));
+                                                                    stringArgumentAndParameters,
+                                                                    returnToVariable,
+                                                                    declaredTarget,
+                                                                    receiver,
+                                                                    types));
     }
 
     private void createStaticOrSpecialMethodCallString(SSAInvokeInstruction i, IR ir,
@@ -876,14 +859,14 @@ public class StatementRegistrar {
         }
         else {
             formalReturn = summary.getRet();
-            actualReturn = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0), pp);
+            actualReturn = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
             assert formalReturn != null;
             assert actualReturn != null;
         }
         ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
         for (int j = 0; j < ir.getMethod().getNumberOfParameters(); ++j) {
             if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp);
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 StringVariable parameter = summary.getFormals().get(j);
                 assert parameter != null;
                 OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
@@ -891,9 +874,9 @@ public class StatementRegistrar {
             }
         }
         this.addStringStatement(stmtFactory.staticOrSpecialMethodCallString(ir.getMethod(),
-                                                                                  stringArgumentAndParameters,
-                                                                                  formalReturn,
-                                                                                  actualReturn));
+                                                                            stringArgumentAndParameters,
+                                                                            formalReturn,
+                                                                            actualReturn));
     }
 
     /**
@@ -997,7 +980,7 @@ public class StatementRegistrar {
         }
 
         if (stringVariableFactory.isStringType(resultType)) {
-            StringVariable sv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), pp);
+            StringVariable sv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
             this.addStringStatement(stmtFactory.newString(sv, ir.getMethod()));
         }
     }
@@ -1036,15 +1019,13 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.phiToLocal(assignee, uses, ir.getMethod()));
 
         if (StringAndReflectiveUtil.isStringType(phiType)) {
-            StringVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i,
-                                                                                  i.getDef(),
-                                                                                  pp);
+            StringVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
             List<StringVariable> svuses = new ArrayList<>(i.getNumberOfUses());
             for (int j = 0; j < i.getNumberOfUses(); ++j) {
                 if (!types.getType(i.getUse(j)).equals(TypeReference.findOrCreate(ClassLoaderReference.Primordial,
                                                                                   "null"))) {
                     // XXX: Wtf, how can type names be the string "null"?
-                    svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), pp));
+                    svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
                 }
             }
             this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
@@ -1082,6 +1063,12 @@ public class StatementRegistrar {
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getResult(), valType, ir.getMethod(), pp);
         ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
+
+        if (StringAndReflectiveUtil.isStringType(types.getType(i.getResult()))) {
+            StringVariable sv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult());
+            StringVariable formalReturn = this.findOrCreateStringMethodSummary(ir.getMethod()).getRet();
+            this.addStringStatement(stmtFactory.localToLocalString(formalReturn, sv, ir.getMethod(), i));
+        }
     }
 
     /**
@@ -1314,9 +1301,7 @@ public class StatementRegistrar {
                 this.registerStringLiteral(newStringLit, use, ir.getMethod(), pp);
 
                 String stringLiteralString = ir.getSymbolTable().getStringValue(use);
-                StringVariable stringLiteralVariable = stringVariableFactory.getOrCreateLocalUse(i,
-                                                                                                 use,
-                                                                                                 pp);
+                StringVariable stringLiteralVariable = stringVariableFactory.getOrCreateLocalUse(i, use);
                 this.addStringStatement(new StringLiteralStatement(ir.getMethod(),
                                                                    stringLiteralVariable,
                                                                    stringLiteralString));

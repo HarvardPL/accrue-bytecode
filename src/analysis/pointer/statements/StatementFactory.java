@@ -575,6 +575,18 @@ public class StatementFactory {
         return s;
     }
 
+    public StringStatement localToLocalString(StringVariable formalReturn, StringVariable sv, IMethod method,
+                                              SSAReturnInstruction i) {
+        assert formalReturn != null;
+        assert sv != null;
+        assert method != null;
+        assert i != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(formalReturn, sv, method, i));
+
+        return new LocalToLocalString(formalReturn, sv, method);
+    }
+
     public StringStatement fieldToLocalString(StringVariable svv, ReferenceVariable o, FieldReference f, IMethod method) {
         assert svv != null;
         assert o != null;
@@ -664,14 +676,16 @@ public class StatementFactory {
         return new LocalToFieldStringStatement(svvDef, svvUse, o, f, method);
     }
 
-    public StringStatement localToStaticFieldString(StringVariable svf, StringVariable svv, IMethod method) {
+    public StringStatement localToStaticFieldString(StringVariable svf, StringVariable svvuse, StringVariable svvdef,
+                                                    IMethod method) {
         assert svf != null;
-        assert svv != null;
+        assert svvuse != null;
+        assert svvdef != null;
         assert method != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(svf, svv, method));
+        assert stringStatementNeverCreatedBefore(new StatementKey(svf, svvuse, svvdef, method));
 
-        return new LocalToStaticFieldStringStatement(svf, svv, method);
+        return new LocalToStaticFieldStringStatement(svf, svvuse, svvdef, method);
     }
 
     public StringStatement stringInit(CallSiteReference callSite, IMethod method, StringVariable sv) {

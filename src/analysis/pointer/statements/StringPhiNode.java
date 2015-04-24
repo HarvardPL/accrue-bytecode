@@ -7,6 +7,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
@@ -26,18 +27,35 @@ public class StringPhiNode extends StringStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica svr = new StringVariableReplica(context, this.v);
-        GraphDelta newDelta = new GraphDelta(g);
+    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
+                                       StmtAndContext originator, HeapAbstractionFactory haf,
+                                       StatementRegistrar registrar) {
+        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.v));
+    }
 
-        Logger.println("[StringPhiNode] " + this);
+    @Override
+    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+        StringVariableReplica svr = new StringVariableReplica(context, this.v);
 
         g.recordStringStatementDefineDependency(svr, originator);
 
         for (StringVariable dependency : dependencies) {
             StringVariableReplica dependentSVR = new StringVariableReplica(context, dependency);
             g.recordStringStatementUseDependency(dependentSVR, originator);
+        }
+    }
+
+    @Override
+    public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                     PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
+        StringVariableReplica svr = new StringVariableReplica(context, this.v);
+        GraphDelta newDelta = new GraphDelta(g);
+
+        Logger.println("[StringPhiNode] " + this);
+
+        for (StringVariable dependency : dependencies) {
+            StringVariableReplica dependentSVR = new StringVariableReplica(context, dependency);
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(svr, dependentSVR));
         }
 

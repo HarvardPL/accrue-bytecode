@@ -13,6 +13,7 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.MethodStringSummary;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -34,9 +35,9 @@ public class VirtualMethodCallString extends MethodCallString {
     private final ReferenceVariable receiver;
 
     public VirtualMethodCallString(IMethod method,
-                                         ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParamNums,
-                                         StringVariable returnToVariable, MethodReference declaredTarget,
-                                         ReferenceVariable receiver) {
+                                   ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParamNums,
+                                   StringVariable returnToVariable, MethodReference declaredTarget,
+                                   ReferenceVariable receiver) {
         super(method);
         this.stringArgumentAndParamNums = stringArgumentAndParamNums;
         this.actualReturn = returnToVariable;
@@ -45,17 +46,64 @@ public class VirtualMethodCallString extends MethodCallString {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
+    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
+                                       StmtAndContext originator, HeapAbstractionFactory haf,
+                                       StatementRegistrar registrar) {
+        boolean writersAreActive = g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+                                                                                                     this.actualReturn));
+
         ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
 
-        PointsToIterable pti = delta == null ? g : delta;
+        for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
+            IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
+            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-        Iterable<InstanceKey> iks = pti.pointsToIterable(receiverRVR, originator);
+            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+                                                                                                      summary.getFormals()
+                                                                                                             .get(pair.snd())));
+            }
+        }
+
+        return writersAreActive;
+    }
+
+    @Override
+    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+        ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
+
+        for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
+            IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
+            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+
+            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                StringVariableReplica argument = new StringVariableReplica(context, pair.fst());
+                StringVariableReplica parameter = new StringVariableReplica(context, summary.getFormals()
+                                                                                            .get(pair.snd()));
+                g.recordStringStatementUseDependency(argument, originator);
+                g.recordStringStatementDefineDependency(parameter, originator);
+            }
+
+            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+            if (actualReturn != null) {
+                StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
+                StringVariableReplica formalReturnSVR = new StringVariableReplica(context, summary.getRet());
+
+                g.recordStringStatementDefineDependency(actualReturnSVR, originator);
+                g.recordStringStatementUseDependency(formalReturnSVR, originator);
+            }
+        }
+    }
+
+    @Override
+    public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                     PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
+        ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
 
         GraphDelta newDelta = new GraphDelta(g);
 
-        for (InstanceKey ik : iks) {
+        for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
             MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
@@ -67,15 +115,11 @@ public class VirtualMethodCallString extends MethodCallString {
                 stringArgumentAndParameters.add(newpair);
             }
 
-            newDelta.combine(this.processCall(this.actualReturn,
-                                              summary.getRet(),
-                                              stringArgumentAndParameters,
-                                              context,
-                                              haf,
-                                              g,
-                                              delta,
-                                              registrar,
-                                              originator));
+            newDelta.combine(MethodCallString.processCall(this.actualReturn,
+                                                          summary.getRet(),
+                                                          stringArgumentAndParameters,
+                                                          context,
+                                                          g));
         }
         return newDelta;
     }

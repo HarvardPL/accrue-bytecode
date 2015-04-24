@@ -5,7 +5,6 @@ import java.util.Map;
 
 import types.TypeRepository;
 import util.OrderedPair;
-import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
 import analysis.pointer.registrar.strings.StringVariable;
@@ -58,16 +57,15 @@ public final class FlowSensitiveStringVariableFactory {
 
     /* Logic */
 
-    public StringVariable getOrCreateLocalDef(SSAInstruction i, int defNum, PrettyPrinter pp) {
-        return getOrCreateLocal(this.defSensitizerAtInstruction.get(i), defNum, pp);
+    public StringVariable getOrCreateLocalDef(SSAInstruction i, int defNum) {
+        return getOrCreateLocal(this.defSensitizerAtInstruction.get(i), defNum);
     }
 
-    public StringVariable getOrCreateLocalUse(SSAInstruction i, int useNum, PrettyPrinter pp) {
-        return getOrCreateLocal(this.useSensitizerAtInstruction.get(i), useNum, pp);
+    public StringVariable getOrCreateLocalUse(SSAInstruction i, int useNum) {
+        return getOrCreateLocal(this.useSensitizerAtInstruction.get(i), useNum);
     }
 
-    private StringVariable getOrCreateLocal(Map<Integer, Integer> sensitizer, Integer varNum,
-                                            @SuppressWarnings("unused") PrettyPrinter pp) {
+    private StringVariable getOrCreateLocal(Map<Integer, Integer> sensitizer, Integer varNum) {
         return getOrCreateLocalWithSubscript(varNum, getOrDefaultSensitizer(sensitizer, varNum));
     }
 

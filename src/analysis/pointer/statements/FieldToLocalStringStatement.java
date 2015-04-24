@@ -33,14 +33,17 @@ public class FieldToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
+    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
+                                       StmtAndContext originator, HeapAbstractionFactory haf,
+                                       StatementRegistrar registrar) {
+        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.v));
+    }
+
+    @Override
+    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
         StringVariableReplica vSVR = new StringVariableReplica(context, this.v);
         PointsToGraphNode oRVR = new ReferenceVariableReplica(context, this.o, haf);
-
-        PointsToIterable pti = delta == null ? g : delta;
-
-        GraphDelta newDelta = new GraphDelta(g);
 
         g.recordStringStatementDefineDependency(vSVR, originator);
 
@@ -48,6 +51,20 @@ public class FieldToLocalStringStatement extends StringStatement {
             ObjectField f = new ObjectField(oIK, this.field);
 
             g.recordStringStatementUseDependency(f, originator);
+        }
+    }
+
+    @Override
+    public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                     PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
+        StringVariableReplica vSVR = new StringVariableReplica(context, this.v);
+        PointsToGraphNode oRVR = new ReferenceVariableReplica(context, this.o, haf);
+
+        GraphDelta newDelta = new GraphDelta(g);
+
+        for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
+            ObjectField f = new ObjectField(oIK, this.field);
+
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(vSVR, f));
         }
         return newDelta;

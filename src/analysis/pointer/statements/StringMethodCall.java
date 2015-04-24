@@ -11,6 +11,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.FlowSensitiveStringVariableFactory;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -25,8 +26,6 @@ import com.ibm.wala.types.MethodReference;
  * Represents a method call on a StringBuilder.
  */
 public class StringMethodCall extends StringStatement {
-    private static final int MAX_STRING_SET_SIZE = 5;
-
     private final CallSiteReference callSite;
 
     /**
@@ -52,7 +51,7 @@ public class StringMethodCall extends StringStatement {
     private final FlowSensitiveStringVariableFactory stringVariableFactory;
 
     private enum MethodEnum {
-        concatM, toStringM, somethingElseM
+        concatM, toStringM
     }
 
     private static MethodEnum imethodToMethodEnum(IMethod m) {
@@ -64,7 +63,7 @@ public class StringMethodCall extends StringStatement {
             return MethodEnum.toStringM;
         }
         else {
-            return MethodEnum.somethingElseM;
+            throw new RuntimeException("Unhandled string method: " + m);
         }
     }
 
@@ -82,8 +81,50 @@ public class StringMethodCall extends StringStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
+    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
+                                       StmtAndContext originator, HeapAbstractionFactory haf,
+                                       StatementRegistrar registrar) {
+        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.result));
+    }
+
+    @Override
+    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+        StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+        StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
+        StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
+        List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
+        for (StringVariable argument : this.arguments) {
+            argumentSVRs.add(new StringVariableReplica(context, argument));
+        }
+
+        switch (this.invokedMethod) {
+        case concatM: {
+            // the first argument is a copy of the "this" argument
+            assert argumentSVRs.size() == 2 : argumentSVRs.size();
+
+            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
+
+            g.recordStringStatementUseDependency(receiverUseSVR, originator);
+            g.recordStringStatementUseDependency(argumentSVRs.get(1), originator);
+
+            break;
+        }
+        case toStringM: {
+            g.recordStringStatementDefineDependency(resultSVR, originator);
+            g.recordStringStatementUseDependency(receiverUseSVR, originator);
+
+            break;
+        }
+        default: {
+            throw new RuntimeException("Unhandled case of invokedMethod: " + this.invokedMethod);
+        }
+        }
+    }
+
+    @Override
+    public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                     PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
         StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
         StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
@@ -95,39 +136,21 @@ public class StringMethodCall extends StringStatement {
         Logger.println("[StringMethodCall." + this.invokedMethod + "] " + this);
         switch (this.invokedMethod) {
         case concatM: {
-            GraphDelta newDelta = new GraphDelta(g);
-
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
-
-            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
-
-            g.recordStringStatementUseDependency(receiverUseSVR, originator);
-            g.recordStringStatementUseDependency(argumentSVRs.get(1), originator);
 
             AString receiverAString = g.getAStringFor(receiverUseSVR);
             AString argumentAString = g.getAStringFor(argumentSVRs.get(1));
 
-            AString newSIK = receiverAString.concat(argumentAString);
-            newDelta.combine(g.stringSolutionVariableReplicaJoinAt(receiverDefSVR, newSIK));
-            return newDelta;
+            AString concated = receiverAString.concat(argumentAString);
+
+            return g.stringSolutionVariableReplicaJoinAt(receiverDefSVR, concated);
         }
         case toStringM: {
-            GraphDelta newDelta = new GraphDelta(g);
-
-            g.recordStringStatementDefineDependency(resultSVR, originator);
-
-            g.recordStringStatementUseDependency(receiverUseSVR, originator);
-
-            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
-
-            return newDelta;
-        }
-        case somethingElseM: {
-            return new GraphDelta(g);
+            return g.stringSolutionVariableReplicaUpperBounds(resultSVR, receiverUseSVR);
         }
         default: {
-            throw new RuntimeException("Unhandled MethodEnum");
+            throw new RuntimeException("Unhandled case of invokedMethod: " + this.invokedMethod);
         }
 
         }
