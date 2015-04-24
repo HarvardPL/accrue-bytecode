@@ -834,7 +834,7 @@ public class StatementRegistrar {
         ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters = new ArrayList<>();
         for (int j = 0; j < ir.getMethod().getNumberOfParameters(); ++j) {
             if (StringAndReflectiveUtil.isStringType(ir.getMethod().getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, ir.getParameter(j));
                 OrderedPair<StringVariable, Integer> pair = new OrderedPair<>(argument, j);
                 stringArgumentAndParameters.add(pair);
             }
