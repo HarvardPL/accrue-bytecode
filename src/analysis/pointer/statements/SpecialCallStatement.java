@@ -40,27 +40,19 @@ public class SpecialCallStatement extends CallStatement {
     /**
      * Points-to statement for a special method invocation.
      *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param callee
-     *            Method being called
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param receiver
-     *            Receiver of the call
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node representing the exception thrown by the callee and implicit exceptions
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
+     * @param callSite Method call site
+     * @param caller caller method
+     * @param callee Method being called
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param receiver Receiver of the call
+     * @param actuals Actual arguments to the call
+     * @param exception Node representing the exception thrown by the callee and implicit exceptions
+     * @param calleeSummary summary nodes for formals and exits of the callee
      */
-    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller,
-                                   IMethod callee, ReferenceVariable result,
-                                   ReferenceVariable receiver, List<ReferenceVariable> actuals,
-                                   ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
+    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller, IMethod callee,
+                                   ReferenceVariable result, ReferenceVariable receiver,
+                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                   MethodSummaryNodes calleeSummary) {
         super(callSite, caller, result, actuals, exception);
         this.callee = callee;
         this.receiver = receiver;
@@ -68,27 +60,18 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica receiverRep =
- new ReferenceVariableReplica(context, this.receiver, haf);
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter =
-                delta == null
- ? g.pointsToIterator(receiverRep, originator)
-                        : delta.pointsToIterator(receiverRep);
-                while (iter.hasNext()) {
-                    InstanceKey recHeapCtxt = iter.next();
-                    changed =
-                            changed.combine(this.processCall(context,
-                                                             recHeapCtxt,
-                                                             this.callee,
-                                                             g,
-                                                             haf,
-                                                             this.calleeSummary));
-                }
-                return changed;
+        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
+                : delta.pointsToIterator(receiverRep);
+        while (iter.hasNext()) {
+            InstanceKey recHeapCtxt = iter.next();
+            changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
+        }
+        return changed;
 
     }
 

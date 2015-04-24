@@ -714,10 +714,9 @@ public class StatementFactory {
         return new GetPropertyStatement(callSite, method, declaredTarget, svresult, svarguments);
     }
 
-    public StringStatement staticOrSpecialMethodCallStringEscape(IMethod method,
-                                                                 List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
-                                                                 StringVariable returnedVariable,
-                                                                 StringVariable returnToVariable) {
+    public StringStatement staticOrSpecialMethodCallString(IMethod method,
+                                                           List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
+                                                           StringVariable formalReturn, StringVariable actualReturn) {
         /* NB: both returnedVariable and returnToVariable could be null. Nullness */
         /* indicates the return value is either ignored or not String-like */
         assert stringArgumentAndParameters != null;
@@ -729,20 +728,16 @@ public class StatementFactory {
 
         assert stringStatementNeverCreatedBefore(new StatementKey(method,
                                                                   stringArgumentAndParameters,
-                                                                  returnedVariable,
-                                                                  returnToVariable));
+                                                                  formalReturn,
+                                                                  actualReturn));
 
-        return new StaticOrSpecialMethodCallString(method,
-                                                         stringArgumentAndParameters,
-                                                         returnedVariable,
-                                                         returnToVariable);
+        return new StaticOrSpecialMethodCallString(method, stringArgumentAndParameters, formalReturn, actualReturn);
     }
 
-    public StringStatement virtualMethodCallStringEscape(IMethod method,
-                                                         ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters,
-                                                         StringVariable returnToVariable,
-                                                         MethodReference declaredTarget, ReferenceVariable receiver,
-                                                         TypeRepository types) {
+    public StringStatement virtualMethodCallString(IMethod method,
+                                                   ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters,
+                                                   StringVariable returnToVariable, MethodReference declaredTarget,
+                                                   ReferenceVariable receiver, TypeRepository types) {
         /* NB: returnToVariable could be null. Nullness indicates the return */
         /* value is either ignored or not String-like */
         assert stringArgumentAndParameters != null;
@@ -761,10 +756,10 @@ public class StatementFactory {
                                                                   declaredTarget));
 
         return new VirtualMethodCallString(method,
-                                                 stringArgumentAndParameters,
-                                                 returnToVariable,
-                                                 declaredTarget,
-                                                 receiver);
+                                           stringArgumentAndParameters,
+                                           returnToVariable,
+                                           declaredTarget,
+                                           receiver);
     }
 
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,

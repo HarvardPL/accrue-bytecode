@@ -741,7 +741,7 @@ public class StatementRegistrar {
                                                                     svarguments));
             }
             else {
-                this.createStaticOrSpecialMethodCallStringEscape(i,
+                this.createStaticOrSpecialMethodCallString(i,
                                                                  ir,
                                                                  stringVariableFactory,
                                                                  pp,
@@ -773,11 +773,7 @@ public class StatementRegistrar {
                 this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
             }
             else {
-                this.createStaticOrSpecialMethodCallStringEscape(i,
-                                                                 ir,
-                                                                 stringVariableFactory,
-                                                                 pp,
-                                                                 resolvedCallee);
+                this.createStaticOrSpecialMethodCallString(i, ir, stringVariableFactory, pp, resolvedCallee);
             }
 
         }
@@ -811,13 +807,13 @@ public class StatementRegistrar {
                                                                      stringVariableFactory));
             }
             else {
-                this.createVirtualMethodCallStringEscape(i,
-                                                         ir,
-                                                         stringVariableFactory,
-                                                         types,
-                                                         pp,
-                                                         i.getDeclaredTarget(),
-                                                         receiver);
+                this.createVirtualMethodCallString(i,
+                                                   ir,
+                                                   stringVariableFactory,
+                                                   types,
+                                                   pp,
+                                                   i.getDeclaredTarget(),
+                                                   receiver);
             }
 
             this.addStatement(stmtFactory.virtualCall(i.getCallSite(),
@@ -836,7 +832,7 @@ public class StatementRegistrar {
 
     }
 
-    private void createVirtualMethodCallStringEscape(SSAInvokeInstruction i, IR ir,
+    private void createVirtualMethodCallString(SSAInvokeInstruction i, IR ir,
                                                      FlowSensitiveStringVariableFactory stringVariableFactory,
                                                      TypeRepository types, PrettyPrinter pp,
                                                      MethodReference declaredTarget, ReferenceVariable receiver) {
@@ -860,7 +856,7 @@ public class StatementRegistrar {
                 stringArgumentAndParameters.add(pair);
             }
         }
-        this.addStringStatement(stmtFactory.virtualMethodCallStringEscape(ir.getMethod(),
+        this.addStringStatement(stmtFactory.virtualMethodCallString(ir.getMethod(),
                                                                           stringArgumentAndParameters,
                                                                           returnToVariable,
                                                                           declaredTarget,
@@ -868,9 +864,9 @@ public class StatementRegistrar {
                                                                           types));
     }
 
-    private void createStaticOrSpecialMethodCallStringEscape(SSAInvokeInstruction i, IR ir,
-                                                             FlowSensitiveStringVariableFactory stringVariableFactory,
-                                                             PrettyPrinter pp, IMethod resolvedCallee) {
+    private void createStaticOrSpecialMethodCallString(SSAInvokeInstruction i, IR ir,
+                                                       FlowSensitiveStringVariableFactory stringVariableFactory,
+                                                       PrettyPrinter pp, IMethod resolvedCallee) {
         MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee);
         StringVariable formalReturn;
         StringVariable actualReturn;
@@ -894,7 +890,7 @@ public class StatementRegistrar {
                 stringArgumentAndParameters.add(pair);
             }
         }
-        this.addStringStatement(stmtFactory.staticOrSpecialMethodCallStringEscape(ir.getMethod(),
+        this.addStringStatement(stmtFactory.staticOrSpecialMethodCallString(ir.getMethod(),
                                                                                   stringArgumentAndParameters,
                                                                                   formalReturn,
                                                                                   actualReturn));
@@ -1567,17 +1563,15 @@ public class StatementRegistrar {
     }
 
     public MethodStringSummary findOrCreateStringMethodSummary(IMethod method) {
-        IR ir = AnalysisUtil.getIR(method);
-        FlowSensitiveStringVariableFactory stringVariableFactory = this.getOrCreateStringVariableFactory(method);
         MethodStringSummary summary = this.methodStringSummaries.get(method);
         if (summary == null) {
+            IR ir = AnalysisUtil.getIR(method);
+            FlowSensitiveStringVariableFactory stringVariableFactory = this.getOrCreateStringVariableFactory(method);
             summary = MethodStringSummary.make(stringVariableFactory, method, ir);
             MethodStringSummary previous = this.methodStringSummaries.putIfAbsent(method, summary);
             return previous == null ? summary : previous;
         }
-        else {
-            return summary;
-        }
+        return summary;
     }
 
     /**
