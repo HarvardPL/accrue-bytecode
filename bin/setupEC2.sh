@@ -24,7 +24,7 @@
 # change path to JRE in to the path to rt.jar data/wala.properties
 
 sudo yum -y install git ant ant-junit emacs
-export JAVA_HOME=/usr/lib/jvm/java-1.7.0-openjdk-1.7.0.75.x86_64/
+export JAVA_HOME=/usr/lib/jvm-exports/java-1.7.0-openjdk.x86_64
 export ACCRUE_BYTECODE=/mnt/experiments/accrue-bytecode
 export PIDGIN=/mnt/experiments/pidgin
 cd /mnt/experiments/accrue-bytecode
