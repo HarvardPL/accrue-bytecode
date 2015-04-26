@@ -14,7 +14,7 @@
 #
 # 4. Mount the code
 # 5. Run this script (need to use "source" for JAVA_HOME to be set properly in this shell)
-# l
+# sudo mkdir /mnt/experiments; sudo mount /dev/xvdf /mnt/experiments; source /mnt/experiments/accrue-bytecode/bin/setupEC2.sh   
 #
 # 6. Test the setup
 # ant clean; ant; ant test
