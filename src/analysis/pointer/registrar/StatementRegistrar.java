@@ -28,6 +28,7 @@ import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.LocalToFieldStatement;
+import analysis.pointer.statements.LocalToLocalStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
@@ -1378,5 +1379,33 @@ public class StatementRegistrar {
      */
     public ReferenceVariable getSingletonForClass(IClass klass) {
         return this.singletonReferenceVariables.get(klass.getReference());
+    }
+
+    public void fixFakeRoot() {
+        Set<PointsToStatement> oldSet = getStatementsForMethod(AnalysisUtil.getFakeRoot());
+        Set<PointsToStatement> newSet = new LinkedHashSet<>();
+        Set<PointsToStatement> localSet = new LinkedHashSet<>();
+        Set<PointsToStatement> otherSet = new LinkedHashSet<>();
+
+        for (PointsToStatement s : oldSet) {
+            if (s instanceof NewStatement) {
+                if (s.getDef().isSingleton()) {
+                    newSet.add(s);
+                }
+            }
+
+            if (s instanceof LocalToLocalStatement) {
+                if (s.getUses().get(0).isSingleton()) {
+                    localSet.add(s);
+                }
+            }
+
+            otherSet.add(s);
+        }
+
+        Set<PointsToStatement> ordered = new LinkedHashSet<>();
+        ordered.addAll(newSet);
+        ordered.addAll(localSet);
+        ordered.addAll(otherSet);
     }
 }

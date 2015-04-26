@@ -38,9 +38,9 @@ public class StatementRegistrationPass {
 
     /**
      * Create a pass which will generate points-to statements
-     * 
+     *
      * @param factory factory used to create points-to statements
-     * 
+     *
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -226,6 +226,8 @@ public class StatementRegistrationPass {
             }
 
         }
+
+        registrar.fixFakeRoot();
 
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
         if (!AccrueAnalysisMain.testMode) {
