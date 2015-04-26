@@ -115,7 +115,6 @@ public class AccrueAnalysisMain {
         AccrueAnalysisMain.fileLevel = options.getFileLevel();
         String classPath = options.getAnalysisClassPath();
         HeapAbstractionFactory haf = options.getHaf();
-        boolean isOnline = options.registerOnline();
         boolean useSingleThreadedPointerAnalysis = options.useSingleThreadedPointerAnalysis();
         int numThreads = useSingleThreadedPointerAnalysis ? 1 : options.getNumThreads();
         AccrueAnalysisMain.testMode = options.isTestMode();
@@ -171,7 +170,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -199,7 +197,6 @@ public class AccrueAnalysisMain {
                                haf,
                                outputDir,
                                useSingleThreadedPointerAnalysis,
-                               isOnline,
                                singleGenEx,
                                singleThrowable,
                                singlePrimArray,
@@ -212,7 +209,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -231,7 +227,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -253,7 +248,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -306,7 +300,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -325,7 +318,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -342,7 +334,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -375,7 +366,6 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
@@ -495,7 +485,6 @@ public class AccrueAnalysisMain {
      * @param outputLevel print level
      * @param haf Definition of the abstraction for heap locations
      * @param singleThreaded whether to use a single-threaded pointer analysis
-     * @param online if true then points-to statements are registered during pointer analysis, rather than before
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -513,15 +502,14 @@ public class AccrueAnalysisMain {
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
      * @param useSingleAllocForSwing If true then only one allocation will be made for each type of in the java swing
      *            API
-     *
      * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
      *            other signature
+     * @param online if true then points-to statements are registered during pointer analysis, rather than before
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
                                                                                             HeapAbstractionFactory haf,
                                                                                             boolean singleThreaded,
-                                                                                            boolean isOnline,
                                                                                             boolean useSingleAllocForGenEx,
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
@@ -541,31 +529,18 @@ public class AccrueAnalysisMain {
         PointsToGraph g;
         StatementRegistrar registrar;
         StatementFactory factory = new StatementFactory();
-        if (isOnline) {
-            registrar = new StatementRegistrar(factory,
-                                               useSingleAllocForGenEx,
-                                               useSingleAllocForThrowable,
-                                               useSingleAllocForPrimitiveArrays,
-                                               useSingleAllocForStrings,
-                                               useSingleAllocForImmutableWrappers,
-                                               useSingleAllocForSwing,
-                                               useDefaultNativeSignatures);
-            g = analysis.solveAndRegister(registrar);
-        }
-        else {
-            StatementRegistrationPass pass = new StatementRegistrationPass(factory,
-                                                                           useSingleAllocForGenEx,
-                                                                           useSingleAllocForThrowable,
-                                                                           useSingleAllocForPrimitiveArrays,
-                                                                           useSingleAllocForStrings,
-                                                                           useSingleAllocForImmutableWrappers,
-                                                                           useSingleAllocForSwing,
-                                                                           useDefaultNativeSignatures);
-            pass.run();
-            registrar = pass.getRegistrar();
-            PointsToAnalysis.outputLevel = outputLevel;
-            g = analysis.solve(registrar);
-        }
+        StatementRegistrationPass pass = new StatementRegistrationPass(factory,
+                                                                       useSingleAllocForGenEx,
+                                                                       useSingleAllocForThrowable,
+                                                                       useSingleAllocForPrimitiveArrays,
+                                                                       useSingleAllocForStrings,
+                                                                       useSingleAllocForImmutableWrappers,
+                                                                       useSingleAllocForSwing,
+                                                                       useDefaultNativeSignatures);
+        pass.run();
+        registrar = pass.getRegistrar();
+        PointsToAnalysis.outputLevel = outputLevel;
+        g = analysis.solve(registrar);
 
         System.err.println("Registered statements: " + registrar.size());
         if (outputLevel >= 2) {
@@ -646,7 +621,6 @@ public class AccrueAnalysisMain {
                 // This is only to find bugs not for performance comparison
                 OrderedPair<PointsToGraph, ReferenceVariableCache> out = generatePointsToGraph(0,
                                                                                                haf,
-                                                                                               false,
                                                                                                false,
                                                                                                useSingleAllocForGenEx,
                                                                                                useSingleAllocForThrowable,
@@ -815,7 +789,6 @@ public class AccrueAnalysisMain {
      * @param haf heap abstraction factory defining analysis contexts
      * @param outputDir directory to print output to
      * @param singleThreaded should this use a single-threaded pointer analysis
-     * @param isOnline should use an online points-to statement registration
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -835,14 +808,13 @@ public class AccrueAnalysisMain {
      *            other signature
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
-                                           String outputDir, boolean singleThreaded, boolean isOnline,
+                                           String outputDir, boolean singleThreaded,
                                            boolean useSingleAllocForGenEx, boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
                                            boolean useSingleAllocForImmutableWrappers, boolean useSingleAllocForSwing,
                                            boolean useDefaultNativeSignatures) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
-                                                                                           isOnline,
                                                                                            singleThreaded,
                                                                                            useSingleAllocForGenEx,
                                                                                            useSingleAllocForThrowable,

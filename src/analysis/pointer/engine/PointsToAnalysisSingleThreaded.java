@@ -20,7 +20,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
@@ -69,13 +68,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     @Override
     public PointsToGraph solve(StatementRegistrar registrar) {
-        return this.solveSmarter(registrar, false);
-    }
-
-    @Override
-    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
-        onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
-        return this.solveSmarter(onlineRegistrar, true);
+        return this.solveSmarter(registrar);
     }
 
     /**
@@ -119,7 +112,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @return Points-to graph
      */
     @SuppressWarnings("synthetic-access")
-    public PointsToGraph solveSmarter(final StatementRegistrar registrar, final boolean registerOnline) {
+    public PointsToGraph solveSmarter(final StatementRegistrar registrar) {
         System.err.println("Starting points to engine using " + this.haf);
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;
@@ -156,14 +149,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             @Override
             public void recordNewContext(IMethod callee, Context calleeContext) {
-                if (registerOnline) {
-                    // Add statements for the given method to the registrar
-                    long start = System.currentTimeMillis();
-                    registrar.registerMethod(callee);
-                    long end = System.currentTimeMillis();
-                    PointsToAnalysisSingleThreaded.this.registrationTime += end - start;
-                }
-
                 updateLineCounter(callee);
 
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
@@ -222,22 +207,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     noDeltaQueue.add(sac);
                 }
             }
-        }
-
-        if (registerOnline) {
-            StatementListener stmtListener = new StatementListener() {
-
-                @Override
-                public void newStatement(PointsToStatement stmt) {
-                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
-                        // it's a new special instruction. Let's make sure it gets evaluated.
-                        noDeltaQueue.add(new StmtAndContext(stmt, haf.initialContext()));
-                    }
-
-                }
-
-            };
-            registrar.setStatementListener(stmtListener);
         }
 
         this.lastTime = this.startTime;

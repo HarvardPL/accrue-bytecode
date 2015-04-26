@@ -278,11 +278,6 @@ public class StatementRegistrar {
     }
 
     /**
-     * A listener that will get notified of newly created statements.
-     */
-    private StatementListener stmtListener = null;
-
-    /**
      * Total number of statements that are removed when duplicate statements are removed
      */
     private static int removed = 0;
@@ -921,10 +916,6 @@ public class StatementRegistrar {
         if (ss.add(s)) {
             this.size++;
         }
-        if (stmtListener != null) {
-            // let the listener now a statement has been added.
-            stmtListener.newStatement(s);
-        }
 
         if ((this.size + StatementRegistrar.removed) % 100000 == 0) {
             System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removed) + ", removed: "
@@ -1340,19 +1331,6 @@ public class StatementRegistrar {
             InstructionInfo other = (InstructionInfo) obj;
             return this.instruction.equals(other.instruction);
         }
-    }
-
-    public interface StatementListener {
-        /**
-         * Called when a new statement is added to the registrar.
-         *
-         * @param stmt
-         */
-        void newStatement(PointsToStatement stmt);
-    }
-
-    public void setStatementListener(StatementListener stmtListener) {
-        this.stmtListener = stmtListener;
     }
 
     public IMethod getEntryPoint() {

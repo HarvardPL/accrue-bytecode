@@ -21,7 +21,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -58,17 +57,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     @Override
     public PointsToGraph solve(StatementRegistrar registrar) {
-        return this.solveConcurrently(registrar, false);
-    }
-
-    @Override
-    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
-        onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
-        return this.solveConcurrently(onlineRegistrar, true);
+        return this.solveConcurrently(registrar);
     }
 
     @SuppressWarnings("synthetic-access")
-    public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
+    public PointsToGraph solveConcurrently(final StatementRegistrar registrar) {
         System.err.println("Starting points to engine using " + this.haf + " "
                 + PointsToAnalysisMultiThreaded.numThreads() + " threads");
         long startTime = System.currentTimeMillis();
@@ -107,11 +100,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             @Override
             public void recordNewContext(IMethod callee, Context calleeContext) {
-                if (registerOnline) {
-                    // Add statements for the given method to the registrar
-                    registrar.registerMethod(callee);
-                }
-
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     execService.submitTask(newSaC);
@@ -131,23 +119,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 }
             }
         }
-
-        if (registerOnline) {
-            StatementListener stmtListener = new StatementListener() {
-
-                @Override
-                public void newStatement(PointsToStatement stmt) {
-                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
-                        // it's a new special instruction. Let's make sure it gets evaluated.
-                        execService.submitTask(new StmtAndContext(stmt, haf.initialContext()));
-                    }
-
-                }
-
-            };
-            registrar.setStatementListener(stmtListener);
-        }
-
 
         // start up...
 
