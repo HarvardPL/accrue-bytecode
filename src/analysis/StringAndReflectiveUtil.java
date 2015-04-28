@@ -95,7 +95,7 @@ public class StringAndReflectiveUtil {
         return methodReferenceToIMethod(MethodReference.findOrCreate(type, selector));
     }
 
-    private static IClass typeReferenceToIClass(TypeReference tr) {
+    public static IClass typeReferenceToIClass(TypeReference tr) {
         return AnalysisUtil.getClassHierarchy().lookupClass(tr);
     }
 

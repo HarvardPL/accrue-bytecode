@@ -82,7 +82,9 @@ public final class FlowSensitiveStringVariableFactory {
             }
             else {
                 throw new RuntimeException("String variables may only be created for objects "
-                        + "of class String or StringBuilder, given: " + klass);
+                        + "of class String or StringBuilder, given: " + klass + " compared to: "
+                        + StringAndReflectiveUtil.JavaLangStringIClass + " and "
+                        + StringAndReflectiveUtil.JavaLangStringBuilderIClass);
             }
         }
         else {
@@ -110,9 +112,11 @@ public final class FlowSensitiveStringVariableFactory {
 
     @SuppressWarnings("static-method")
     public StringVariable getOrCreateMethodReturn(IMethod method) {
-        if (method.getReturnType().equals(TypeReference.JavaLangString)) {
+        IClass klass = StringAndReflectiveUtil.typeReferenceToIClass(method.getReturnType());
+        if (klass.equals(StringAndReflectiveUtil.JavaLangStringIClass)) {
             return StringVariableFactory.makeMethodReturnString(method);
-        } else if (method.getReturnType().equals(TypeReference.JavaLangStringBuilder)) {
+        }
+        else if (klass.equals(StringAndReflectiveUtil.JavaLangStringBuilderIClass)) {
             return StringVariableFactory.makeMethodReturnStringBuilder(method);
         } else {
             throw new RuntimeException("FlowSensitiveStringVariableFactory can only create "
