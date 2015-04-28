@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import types.TypeRepository;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -754,7 +753,7 @@ public class StatementFactory {
     public StringStatement virtualMethodCallString(IMethod method,
                                                    ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters,
                                                    StringVariable returnToVariable, MethodReference declaredTarget,
-                                                   ReferenceVariable receiver, TypeRepository types) {
+                                                   ReferenceVariable receiver, ReferenceVariable exception) {
         /* NB: returnToVariable could be null. Nullness indicates the return */
         /* value is either ignored or not String-like */
         assert stringArgumentAndParameters != null;
@@ -765,12 +764,13 @@ public class StatementFactory {
         }
         assert declaredTarget != null;
         assert receiver != null;
-        assert types != null;
+        assert exception != null;
 
         assert stringStatementNeverCreatedBefore(new StatementKey(method,
                                                                   stringArgumentAndParameters,
                                                                   returnToVariable,
-                                                                  declaredTarget));
+                                                                  declaredTarget,
+                                                                  exception));
 
         return new VirtualMethodCallString(method,
                                            stringArgumentAndParameters,

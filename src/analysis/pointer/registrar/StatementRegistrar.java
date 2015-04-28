@@ -740,7 +740,7 @@ public class StatementRegistrar {
                                                                     svarguments));
             }
             else {
-                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, pp, resolvedCallee);
+                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
             }
         }
         else if (i.isSpecial()) {
@@ -766,7 +766,7 @@ public class StatementRegistrar {
                 this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
             }
             else {
-                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, pp, resolvedCallee);
+                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
             }
 
         }
@@ -794,13 +794,7 @@ public class StatementRegistrar {
                                                                      stringVariableFactory));
             }
             else {
-                this.createVirtualMethodCallString(i,
-                                                   ir,
-                                                   stringVariableFactory,
-                                                   types,
-                                                   pp,
-                                                   i.getDeclaredTarget(),
-                                                   receiver);
+                this.createVirtualMethodCallString(i, ir, stringVariableFactory, receiver, exception);
             }
 
             this.addStatement(stmtFactory.virtualCall(i.getCallSite(),
@@ -819,10 +813,10 @@ public class StatementRegistrar {
 
     }
 
+    // We need the exception to disambiguate duplicated virtual method calls
     private void createVirtualMethodCallString(SSAInvokeInstruction i, IR ir,
                                                FlowSensitiveStringVariableFactory stringVariableFactory,
-                                               TypeRepository types, PrettyPrinter pp, MethodReference declaredTarget,
-                                               ReferenceVariable receiver) {
+                                               ReferenceVariable receiver, ReferenceVariable exception) {
         StringVariable returnToVariable;
         if (StringAndReflectiveUtil.isStringType(i.getDeclaredResultType())) {
             returnToVariable = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
@@ -832,13 +826,18 @@ public class StatementRegistrar {
             returnToVariable = null;
         }
 
+        MethodReference declaredTarget = i.getDeclaredTarget();
         ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters = new ArrayList<>();
-        assert i.getNumberOfParameters() == declaredTarget.getNumberOfParameters() : "params == args";
-        assert i.getNumberOfUses() == declaredTarget.getNumberOfParameters() : "use == params";
+        // the (1 + ...) is for the `this` argument
+        assert (i.getNumberOfParameters() == 1 + declaredTarget.getNumberOfParameters()) // normal
+        : "args == 1 + params : " + i.getNumberOfParameters() + " == 1 + " + declaredTarget.getNumberOfParameters()
+                + " ; " + i;
 
-        for (int j = 0; j < declaredTarget.getNumberOfParameters(); ++j) {
-            if (StringAndReflectiveUtil.isStringType(declaredTarget.getParameterType(j))) {
+        for (int j = 1; j < i.getNumberOfParameters(); ++j) {
+            if (StringAndReflectiveUtil.isStringType(declaredTarget.getParameterType(j - 1))) {
                 StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
+                // we use j here, not j-1, because IMethod's will include the `this` parameter,
+                // unlike a MethodReference, which does not include it.
                 OrderedPair<StringVariable, Integer> pair = new OrderedPair<>(argument, j);
                 stringArgumentAndParameters.add(pair);
             }
@@ -848,14 +847,13 @@ public class StatementRegistrar {
                                                                     returnToVariable,
                                                                     declaredTarget,
                                                                     receiver,
-                                                                    types));
+                                                                    exception));
     }
 
     private void createStaticOrSpecialMethodCallString(SSAInvokeInstruction i, IMethod caller,
                                                        FlowSensitiveStringVariableFactory stringVariableFactory,
-                                                       PrettyPrinter pp, IMethod resolvedCallee) {
+                                                       IMethod resolvedCallee) {
         MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee);
-        IR calleeIR = AnalysisUtil.getIR(resolvedCallee);
         StringVariable formalReturn;
         StringVariable actualReturn;
         if (summary.getRet() == null) {
@@ -868,16 +866,48 @@ public class StatementRegistrar {
             assert formalReturn != null;
             assert actualReturn != null;
         }
+
         ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
-        for (int j = 0; j < resolvedCallee.getNumberOfParameters(); ++j) {
-            if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
-                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, calleeIR.getParameter(j));
-                StringVariable parameter = summary.getFormals().get(j);
-                assert parameter != null;
-                OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
-                stringArgumentAndParameters.add(pair);
+        if (i.isStatic()) {
+            assert i.getNumberOfParameters() == resolvedCallee.getNumberOfParameters() : "args == params : "
+                    + i.getNumberOfParameters() + " == " + resolvedCallee.getNumberOfParameters() + " ; " + i;
+
+            for (int j = 0; j < i.getNumberOfUses(); ++j) {
+                if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
+                    StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
+                    StringVariable parameter = summary.getFormals().get(j);
+                    assert argument != null;
+                    assert parameter != null;
+                    OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
+                    stringArgumentAndParameters.add(pair);
+                }
             }
         }
+        else if (i.isSpecial()) {
+            // Specials:
+            //  - init (becuase we know what the receiver is),
+            //  - private (because the receiver is obvious from the class definition), and
+            //  - super (because the super is declared in the class definition)
+            //
+            // resolved IMethod's (unlike MethodReferences) include `this`  in getNumberOfParameters()
+            assert (i.getNumberOfParameters() == resolvedCallee.getNumberOfParameters()) : "args == params : "
+                    + i.getNumberOfParameters() + " == " + resolvedCallee.getNumberOfParameters() + " ; " + i;
+            // first use is `this`, so we skip it
+            for (int j = 1; j < i.getNumberOfUses(); ++j) {
+                if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
+                    StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
+                    StringVariable parameter = summary.getFormals().get(j);
+                    assert argument != null;
+                    assert parameter != null;
+                    OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
+                    stringArgumentAndParameters.add(pair);
+                }
+            }
+        }
+        else {
+            throw new RuntimeException("Only static or special methods should be given to this method.");
+        }
+
         this.addStringStatement(stmtFactory.staticOrSpecialMethodCallString(i,
                                                                             caller,
                                                                             stringArgumentAndParameters,
