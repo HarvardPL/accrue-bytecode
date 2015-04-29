@@ -32,8 +32,11 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
 
     @Override
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
-        boolean writersAreActive = g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
-                                                                                                     this.formalReturn));
+        boolean writersAreActive = false;
+        if (this.formalReturn != null) {
+            g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.formalReturn));
+        }
+
         for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
             StringVariableReplica parametersvr = new StringVariableReplica(context, argumentAndParameter.snd());
             writersAreActive |= g.stringSolutionVariableReplicaIsActive(parametersvr);
