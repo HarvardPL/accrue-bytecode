@@ -111,7 +111,8 @@ public class VirtualMethodCallString extends MethodCallString {
                 g.recordStringStatementDefineDependency(parameter, originator);
             }
 
-            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null. summary is "
+                    + summary + " actualReturn is " + actualReturn;
             if (actualReturn != null) {
                 StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
 
