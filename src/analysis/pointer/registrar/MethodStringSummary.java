@@ -41,7 +41,17 @@ public class MethodStringSummary {
     }
 
     public static MethodStringSummary makeNative(IMethod method) {
-        StringVariable ret = StringVariableFactory.makeMethodReturnString(method);
+        StringVariable ret;
+        if (StringAndReflectiveUtil.JavaLangStringIClass.equals(method.getReturnType())) {
+            ret = StringVariableFactory.makeMethodReturnString(method);
+        }
+        else if (StringAndReflectiveUtil.JavaLangStringBuilderIClass.equals(method.getReturnType())) {
+            ret = StringVariableFactory.makeMethodReturnStringBuilder(method);
+        }
+        else {
+            ret = null;
+        }
+
         List<StringVariable> formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); ++i) {
             IClass parameterType = StringAndReflectiveUtil.typeReferenceToIClass(method.getParameterType(i));
