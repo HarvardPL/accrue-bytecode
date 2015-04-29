@@ -73,12 +73,11 @@ public final class FlowSensitiveStringVariableFactory {
     public StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript) {
         StringVariable maybeValue = localsCache.get(new OrderedPair<>(varNum, sensitizingSubscript));
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(typeRepo.getType(varNum));
-        if (klass == null) {
-            throw new RuntimeException("Looked up type for varnum: " + varNum + ", which has typeReference: "
-                    + typeRepo.getType(varNum) + ", but got null");
-        }
         if (maybeValue == null) {
-            if (klass.equals(StringAndReflectiveUtil.JavaLangStringIClass)) {
+            if (klass == null) {
+                return StringVariableFactory.makeLocalNull(method, varNum, sensitizingSubscript);
+            }
+            else if (klass.equals(StringAndReflectiveUtil.JavaLangStringIClass)) {
                 return StringVariableFactory.makeLocalString(method, varNum, sensitizingSubscript);
             }
             else if (klass.equals(StringAndReflectiveUtil.JavaLangStringBuilderIClass)) {

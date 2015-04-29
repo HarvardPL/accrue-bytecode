@@ -14,6 +14,10 @@ public class StringVariableFactory {
         return LocalStringVariable.makeStringBuilder(m, varNum, sensitizingSubscript);
     }
 
+    public static StringVariable makeLocalNull(IMethod method, int varNum, int sensitizingSubscript) {
+        return LocalStringVariable.makeNull(method, varNum, sensitizingSubscript);
+    }
+
     public static StringVariable makeMethodReturnString(IMethod m) {
         return MethodReturnStringVariable.makeString(m);
     }

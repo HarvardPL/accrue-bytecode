@@ -19,6 +19,10 @@ public class LocalStringVariable implements StringVariable {
         return new LocalStringVariable(m, varNum, sensitizingSubscript, TypeReference.JavaLangStringBuilder);
     }
 
+    public static StringVariable makeNull(IMethod m, int varNum, int sensitizingSubscript) {
+        return new LocalStringVariable(m, varNum, sensitizingSubscript, TypeReference.Null);
+    }
+
     /* Constructor */
 
     private LocalStringVariable(IMethod m, int varNum, int sensitizingSubscript, TypeReference klass) {
