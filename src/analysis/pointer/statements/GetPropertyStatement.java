@@ -128,7 +128,7 @@ public class GetPropertyStatement extends StringStatement {
         }
         GraphDelta newDelta = new GraphDelta(g);
 
-        switch (argumentsvrs.size()) {
+        switch (this.arguments.size()) {
         case 1:
         case 2: {
             Logger.push(true);
