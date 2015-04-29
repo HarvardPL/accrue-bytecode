@@ -75,6 +75,7 @@ public class GetPropertyStatement extends StringStatement {
             for (StringVariableReplica argument : argumentsvrs) {
                 g.recordStringStatementUseDependency(argument, originator);
             }
+            break;
         }
         default:
             throw new RuntimeException("unreachable");
@@ -91,6 +92,7 @@ public class GetPropertyStatement extends StringStatement {
         case 1:
         case 2: {
             g.recordStringStatementDefineDependency(resultsvr, originator);
+            break;
         }
         default:
             throw new RuntimeException("unreachable");
@@ -111,6 +113,7 @@ public class GetPropertyStatement extends StringStatement {
             for (StringVariableReplica argument : argumentsvrs) {
                 g.activateStringSolutionVariable(argument);
             }
+            break;
         }
         default:
             throw new RuntimeException("unreachable");
@@ -144,12 +147,13 @@ public class GetPropertyStatement extends StringStatement {
             Logger.pop();
 
             newDelta.combine(g.stringSolutionVariableReplicaJoinAt(resultsvr, shat));
-            return newDelta;
+            break;
         }
         default:
             throw new RuntimeException("unreachable");
         }
 
+        return newDelta;
     }
 
     @Override
