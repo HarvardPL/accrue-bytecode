@@ -27,21 +27,39 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
     }
 
     @Override
-    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
+    protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
+                                       StmtAndContext originator, HeapAbstractionFactory haf,
+                                       StatementRegistrar registrar) {
         return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.f));
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         StringVariableReplica vUsesvr = new StringVariableReplica(context, this.vUse);
+
+        g.recordStringStatementUseDependency(vUsesvr, originator);
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
         StringVariableReplica vDefsvr = new StringVariableReplica(context, this.vDef);
         StringVariableReplica fsvr = new StringVariableReplica(context, this.f);
 
         g.recordStringStatementDefineDependency(fsvr, originator);
         // XXX: hack to deal with escaping string
         g.recordStringStatementDefineDependency(vDefsvr, originator);
-        g.recordStringStatementUseDependency(vUsesvr, originator);
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        StringVariableReplica vUsesvr = new StringVariableReplica(context, this.vUse);
+
+        g.activateStringSolutionVariable(vUsesvr);
     }
 
     @Override

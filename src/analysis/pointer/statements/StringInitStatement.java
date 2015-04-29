@@ -12,18 +12,15 @@ import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 public class StringInitStatement extends StringStatement {
 
-    private final CallSiteReference callSite;
     private final StringVariable sv;
 
-    public StringInitStatement(CallSiteReference callSite, IMethod method, StringVariable sv) {
+    public StringInitStatement(IMethod method, StringVariable sv) {
         super(method);
-        this.callSite = callSite;
         this.sv = sv;
     }
 
@@ -35,11 +32,25 @@ public class StringInitStatement extends StringStatement {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
+        // no reads
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
         StringVariableReplica svr = new StringVariableReplica(context, this.sv);
 
         g.recordStringStatementDefineDependency(svr, originator);
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        // no reads
     }
 
     @Override

@@ -40,20 +40,37 @@ public class LocalToFieldStringStatement extends StringStatement {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         StringVariableReplica vUseSVR = new StringVariableReplica(context, this.vUse);
+
+        g.recordStringStatementUseDependency(vUseSVR, originator);
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
         StringVariableReplica vDefSVR = new StringVariableReplica(context, this.vDef);
         ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
 
         // XXX: Hack, we set the def to top to deal with string escape
         g.recordStringStatementDefineDependency(vDefSVR, originator);
-        g.recordStringStatementUseDependency(vUseSVR, originator);
 
         for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
             g.recordStringStatementDefineDependency(of, originator);
         }
+
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        StringVariableReplica vUseSVR = new StringVariableReplica(context, this.vUse);
+
+        g.activateStringSolutionVariable(vUseSVR);
     }
 
     @Override

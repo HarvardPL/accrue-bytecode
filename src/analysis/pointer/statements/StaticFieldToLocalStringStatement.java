@@ -33,14 +33,29 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica vRVR = new StringVariableReplica(context, this.v);
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         StringVariableReplica fRVR = new StringVariableReplica(context, this.f);
 
-        g.recordStringStatementDefineDependency(vRVR, originator);
-
         g.recordStringStatementUseDependency(fRVR, originator);
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
+        StringVariableReplica vRVR = new StringVariableReplica(context, this.v);
+
+        g.recordStringStatementDefineDependency(vRVR, originator);
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        StringVariableReplica fRVR = new StringVariableReplica(context, this.f);
+
+        g.activateStringSolutionVariable(fRVR);
     }
 
     @Override

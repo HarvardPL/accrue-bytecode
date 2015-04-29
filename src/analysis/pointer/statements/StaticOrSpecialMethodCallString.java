@@ -43,24 +43,59 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
             StringVariableReplica argumentsvr = new StringVariableReplica(context, argumentAndParameter.fst());
-            StringVariableReplica parametersvr = new StringVariableReplica(context, argumentAndParameter.snd());
 
-            g.recordStringStatementDefineDependency(parametersvr, originator);
             g.recordStringStatementUseDependency(argumentsvr, originator);
         }
 
         assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
         if (actualReturn != null) {
-            StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
             StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
 
-            g.recordStringStatementDefineDependency(actualReturnSVR, originator);
             g.recordStringStatementUseDependency(formalReturnSVR, originator);
         }
+
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
+        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringVariableReplica parametersvr = new StringVariableReplica(context, argumentAndParameter.snd());
+
+            g.recordStringStatementDefineDependency(parametersvr, originator);
+        }
+
+        assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
+        if (actualReturn != null) {
+            StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
+
+            g.recordStringStatementDefineDependency(actualReturnSVR, originator);
+        }
+
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringVariableReplica argumentsvr = new StringVariableReplica(context, argumentAndParameter.fst());
+
+            g.activateStringSolutionVariable(argumentsvr);
+        }
+
+        assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
+        if (actualReturn != null) {
+            StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
+
+            g.activateStringSolutionVariable(formalReturnSVR);
+        }
+
     }
 
     @Override

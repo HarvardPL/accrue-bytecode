@@ -69,8 +69,9 @@ public class VirtualMethodCallString extends MethodCallString {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
 
         for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
@@ -79,21 +80,66 @@ public class VirtualMethodCallString extends MethodCallString {
 
             for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
                 StringVariableReplica argument = new StringVariableReplica(context, pair.fst());
+                g.recordStringStatementUseDependency(argument, originator);
+            }
+
+            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+            if (actualReturn != null) {
+                StringVariableReplica formalReturnSVR = new StringVariableReplica(context, summary.getRet());
+                g.recordStringStatementUseDependency(formalReturnSVR, originator);
+            }
+        }
+
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
+        ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
+
+        for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
+            IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
+            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+
+            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
                 StringVariableReplica parameter = new StringVariableReplica(context, summary.getFormals()
                                                                                             .get(pair.snd()));
-                g.recordStringStatementUseDependency(argument, originator);
                 g.recordStringStatementDefineDependency(parameter, originator);
             }
 
             assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
             if (actualReturn != null) {
                 StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
-                StringVariableReplica formalReturnSVR = new StringVariableReplica(context, summary.getRet());
 
                 g.recordStringStatementDefineDependency(actualReturnSVR, originator);
-                g.recordStringStatementUseDependency(formalReturnSVR, originator);
             }
         }
+
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
+
+        for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
+            IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
+            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+
+            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                StringVariableReplica argument = new StringVariableReplica(context, pair.fst());
+                g.activateStringSolutionVariable(argument);
+            }
+
+            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+            if (actualReturn != null) {
+                StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
+
+                g.activateStringSolutionVariable(actualReturnSVR);
+            }
+        }
+
     }
 
     @Override

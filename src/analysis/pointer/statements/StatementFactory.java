@@ -641,14 +641,12 @@ public class StatementFactory {
                                                                   svreceiverDef,
                                                                   svarguments));
 
-        return new StringMethodCall(callSite,
-                                    method,
+        return new StringMethodCall(method,
                                     declaredTarget,
                                     svresult,
                                     svreceiverUse,
                                     svreceiverDef,
-                                    svarguments,
-                                    stringVariableFactory);
+                                    svarguments);
     }
 
     public StringStatement phiToLocalString(StringVariable svassignee, List<StringVariable> svuses, IMethod method,
@@ -694,7 +692,7 @@ public class StatementFactory {
 
         assert stringStatementNeverCreatedBefore(new StatementKey(callSite, method, sv));
 
-        return new StringInitStatement(callSite, method, sv);
+        return new StringInitStatement(method, sv);
     }
 
     public StringStatement stringPhiNode(IMethod method, StringVariable sv, Set<StringVariable> dependentSVs) {

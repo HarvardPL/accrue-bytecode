@@ -40,17 +40,36 @@ public class FieldToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica vSVR = new StringVariableReplica(context, this.v);
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         PointsToGraphNode oRVR = new ReferenceVariableReplica(context, this.o, haf);
-
-        g.recordStringStatementDefineDependency(vSVR, originator);
 
         for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
             ObjectField f = new ObjectField(oIK, this.field);
 
             g.recordStringStatementUseDependency(f, originator);
+        }
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
+        StringVariableReplica vSVR = new StringVariableReplica(context, this.v);
+
+        g.recordStringStatementDefineDependency(vSVR, originator);
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                   StmtAndContext originator, StatementRegistrar registrar) {
+        PointsToGraphNode oRVR = new ReferenceVariableReplica(context, this.o, haf);
+
+        for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
+            ObjectField f = new ObjectField(oIK, this.field);
+
+            g.activateStringSolutionVariable(f);
         }
     }
 

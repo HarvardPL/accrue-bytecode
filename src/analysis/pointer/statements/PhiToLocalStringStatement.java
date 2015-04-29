@@ -34,16 +34,29 @@ public class PhiToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica assigneeSVR = new StringVariableReplica(context, this.assignee);
-
-        g.recordStringStatementDefineDependency(assigneeSVR, originator);
-
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         for (StringVariable use : uses) {
             g.recordStringStatementUseDependency(new StringVariableReplica(context, use), originator);
         }
+    }
 
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
+        StringVariableReplica assigneeSVR = new StringVariableReplica(context, this.assignee);
+
+        g.recordStringStatementDefineDependency(assigneeSVR, originator);
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        for (StringVariable use : uses) {
+            g.activateStringSolutionVariable(new StringVariableReplica(context, use));
+        }
     }
 
     @Override

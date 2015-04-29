@@ -47,6 +47,12 @@ public class GetPropertyStatement extends StringStatement {
         this.declaredTarget = declaredTarget;
         this.result = result;
         this.arguments = arguments;
+
+        if (!(this.arguments.size() == 1 || this.arguments.size() == 2)) {
+            throw new RuntimeException("Cannot create getPropertyStatement without exactly one or two arguments. Given "
+                    + this.arguments);
+
+        }
     }
 
     @Override
@@ -55,26 +61,61 @@ public class GetPropertyStatement extends StringStatement {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica resultsvr = new StringVariableReplica(context, this.result);
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         List<StringVariableReplica> argumentsvrs = new ArrayList<>();
         for (StringVariable argument : this.arguments) {
             argumentsvrs.add(new StringVariableReplica(context, argument));
         }
 
-        switch (argumentsvrs.size()) {
+        switch (this.arguments.size()) {
         case 1:
         case 2: {
-            g.recordStringStatementDefineDependency(resultsvr, originator);
-
             for (StringVariableReplica argument : argumentsvrs) {
                 g.recordStringStatementUseDependency(argument, originator);
             }
         }
         default:
-            throw new RuntimeException("found getPropertyStatement without exactly one or two arguments: " + this);
+            throw new RuntimeException("unreachable");
         }
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
+        StringVariableReplica resultsvr = new StringVariableReplica(context, this.result);
+
+        switch (this.arguments.size()) {
+        case 1:
+        case 2: {
+            g.recordStringStatementDefineDependency(resultsvr, originator);
+        }
+        default:
+            throw new RuntimeException("unreachable");
+        }
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        List<StringVariableReplica> argumentsvrs = new ArrayList<>();
+        for (StringVariable argument : this.arguments) {
+            argumentsvrs.add(new StringVariableReplica(context, argument));
+        }
+
+        switch (this.arguments.size()) {
+        case 1:
+        case 2: {
+            for (StringVariableReplica argument : argumentsvrs) {
+                g.activateStringSolutionVariable(argument);
+            }
+        }
+        default:
+            throw new RuntimeException("unreachable");
+        }
+
     }
 
     @Override
@@ -100,13 +141,13 @@ public class GetPropertyStatement extends StringStatement {
             AString shat = ((ReflectiveHAF) haf).getAStringSet(Collections.singleton("XXXX"));
 
             Logger.println("[GetPropertyStatement] adding: " + shat);
-            Logger.push(false);
+            Logger.pop();
 
             newDelta.combine(g.stringSolutionVariableReplicaJoinAt(resultsvr, shat));
             return newDelta;
         }
         default:
-            throw new RuntimeException("found getPropertyStatement without exactly one or two arguments: " + this);
+            throw new RuntimeException("unreachable");
         }
 
     }

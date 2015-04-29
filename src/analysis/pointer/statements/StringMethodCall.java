@@ -13,11 +13,9 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.StringVariableReplica;
-import analysis.pointer.registrar.FlowSensitiveStringVariableFactory;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringVariable;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.MethodReference;
@@ -26,8 +24,6 @@ import com.ibm.wala.types.MethodReference;
  * Represents a method call on a StringBuilder.
  */
 public class StringMethodCall extends StringStatement {
-    private final CallSiteReference callSite;
-
     /**
      * Which method was invoked?
      */
@@ -48,8 +44,6 @@ public class StringMethodCall extends StringStatement {
      * Arguments to the method call.
      */
     private final List<StringVariable> arguments;
-    private final FlowSensitiveStringVariableFactory stringVariableFactory;
-
     private enum MethodEnum {
         concatM, toStringM
     }
@@ -67,17 +61,14 @@ public class StringMethodCall extends StringStatement {
         }
     }
 
-    public StringMethodCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
-                            StringVariable svresult, StringVariable svreceiverUse, StringVariable svreceiverDef,
-                            List<StringVariable> svarguments, FlowSensitiveStringVariableFactory stringVariableFactory) {
+    public StringMethodCall(IMethod method, MethodReference declaredTarget, StringVariable svresult,
+                            StringVariable svreceiverUse, StringVariable svreceiverDef, List<StringVariable> svarguments) {
         super(method);
-        this.callSite = callSite;
         this.invokedMethod = imethodToMethodEnum(AnalysisUtil.getClassHierarchy().resolveMethod(declaredTarget));
         this.result = svresult;
         this.receiverUse = svreceiverUse;
         this.receiverDef = svreceiverDef;
         this.arguments = svarguments;
-        this.stringVariableFactory = stringVariableFactory;
     }
 
     @Override
@@ -88,11 +79,10 @@ public class StringMethodCall extends StringStatement {
     }
 
     @Override
-    protected void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+    protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar) {
         StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
-        StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
         List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
         for (StringVariable argument : this.arguments) {
             argumentSVRs.add(new StringVariableReplica(context, argument));
@@ -101,9 +91,7 @@ public class StringMethodCall extends StringStatement {
         switch (this.invokedMethod) {
         case concatM: {
             // the first argument is a copy of the "this" argument
-            assert argumentSVRs.size() == 2 : argumentSVRs.size();
-
-            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
+            assert this.arguments.size() == 2 : this.arguments.size();
 
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
             g.recordStringStatementUseDependency(argumentSVRs.get(1), originator);
@@ -111,7 +99,6 @@ public class StringMethodCall extends StringStatement {
             break;
         }
         case toStringM: {
-            g.recordStringStatementDefineDependency(resultSVR, originator);
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
 
             break;
@@ -120,6 +107,66 @@ public class StringMethodCall extends StringStatement {
             throw new RuntimeException("Unhandled case of invokedMethod: " + this.invokedMethod);
         }
         }
+
+    }
+
+    @Override
+    protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                             PointsToIterable pti, StmtAndContext originator,
+                                             StatementRegistrar registrar) {
+        StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+        StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
+
+        switch (this.invokedMethod) {
+        case concatM: {
+            // the first argument is a copy of the "this" argument
+            assert this.arguments.size() == 2 : this.arguments.size();
+
+            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
+
+            break;
+        }
+        case toStringM: {
+            g.recordStringStatementDefineDependency(resultSVR, originator);
+
+            break;
+        }
+        default: {
+            throw new RuntimeException("Unhandled case of invokedMethod: " + this.invokedMethod);
+        }
+        }
+
+    }
+
+    @Override
+    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+                                 StmtAndContext originator, StatementRegistrar registrar) {
+        StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
+        List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
+        for (StringVariable argument : this.arguments) {
+            argumentSVRs.add(new StringVariableReplica(context, argument));
+        }
+
+        switch (this.invokedMethod) {
+        case concatM: {
+            // the first argument is a copy of the "this" argument
+            assert this.arguments.size() == 2 : this.arguments.size();
+
+            g.activateStringSolutionVariable(receiverUseSVR);
+            g.activateStringSolutionVariable(argumentSVRs.get(1));
+
+            break;
+        }
+        case toStringM: {
+            g.activateStringSolutionVariable(receiverUseSVR);
+
+            break;
+        }
+        default: {
+            throw new RuntimeException("Unhandled case of invokedMethod: " + this.invokedMethod);
+        }
+        }
+
     }
 
     @Override

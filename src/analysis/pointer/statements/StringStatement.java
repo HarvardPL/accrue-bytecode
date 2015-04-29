@@ -13,15 +13,9 @@ import com.ibm.wala.ipa.callgraph.Context;
 public abstract class StringStatement implements ConstraintStatement {
 
     protected final IMethod method;
-    private StatementState state;
-
-    private enum StatementState {
-        initial, dependenciesRegistered, active
-    }
 
     protected StringStatement(IMethod method) {
         this.method = method;
-        this.state = StatementState.initial;
     }
 
     /* The last four are only needed for the VirtualMethodCallString class */
@@ -29,9 +23,17 @@ public abstract class StringStatement implements ConstraintStatement {
                                                 StmtAndContext originator, HeapAbstractionFactory haf,
                                                 StatementRegistrar registrar);
 
-    protected abstract void registerDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                                 PointsToIterable pti, StmtAndContext originator,
-                                                 StatementRegistrar registrar);
+    protected abstract void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                                     PointsToIterable pti, StmtAndContext originator,
+                                                     StatementRegistrar registrar);
+
+    protected abstract void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                                      PointsToIterable pti, StmtAndContext originator,
+                                                      StatementRegistrar registrar);
+
+    protected abstract void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                            PointsToIterable pti, StmtAndContext originator,
+                                            StatementRegistrar registrar);
 
     protected abstract GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                                  PointsToIterable pti, StatementRegistrar registrar,
@@ -42,34 +44,14 @@ public abstract class StringStatement implements ConstraintStatement {
                                     StatementRegistrar registrar, StmtAndContext originator) {
         PointsToIterable pti = delta == null ? g : delta;
 
-        switch (this.state) {
-        case initial: {
-            if (this.writersAreActive(context, g, pti, originator, haf, registrar)) {
-                this.registerDependencies(context, haf, g, pti, originator, registrar);
-                this.state = StatementState.active;
-                return this.updateSolution(context, haf, g, pti, registrar, originator);
-            }
-            else {
-                this.registerDependencies(context, haf, g, pti, originator, registrar);
-                this.state = StatementState.dependenciesRegistered;
-                return new GraphDelta(g);
-            }
-        }
-        case dependenciesRegistered: {
-            if (this.writersAreActive(context, g, pti, originator, haf, registrar)) {
-                this.state = StatementState.active;
-                return this.updateSolution(context, haf, g, pti, registrar, originator);
-            }
-            else {
-                return new GraphDelta(g);
-            }
-        }
-        case active: {
+        this.registerWriteDependencies(context, haf, g, pti, originator, registrar);
+        if (this.writersAreActive(context, g, pti, originator, haf, registrar)) {
+            this.activateReads(context, haf, g, pti, originator, registrar);
+            this.registerReadDependencies(context, haf, g, pti, originator, registrar);
             return this.updateSolution(context, haf, g, pti, registrar, originator);
         }
-        default: {
-            throw new RuntimeException("Unhandled case of StatementState");
-        }
+        else {
+            return new GraphDelta(g);
         }
     }
 
