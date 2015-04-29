@@ -1086,7 +1086,7 @@ public class StatementRegistrar {
         ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
 
-        if (StringAndReflectiveUtil.isStringType(types.getType(i.getResult()))) {
+        if (StringAndReflectiveUtil.isStringType(ir.getMethod().getReturnType())) {
             StringVariable sv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult());
             StringVariable formalReturn = this.findOrCreateStringMethodSummary(ir.getMethod()).getRet();
             this.addStringStatement(stmtFactory.localToLocalString(formalReturn, sv, ir.getMethod(), i));
