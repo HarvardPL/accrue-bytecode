@@ -70,4 +70,9 @@ public class MethodStringSummary {
         return this.formals;
     }
 
+    @Override
+    public String toString() {
+        return "MethodStringSummary [ret=" + ret + ", formals=" + formals + "]";
+    }
+
 }
