@@ -49,8 +49,11 @@ public class VirtualMethodCallString extends MethodCallString {
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
                                        StmtAndContext originator, HeapAbstractionFactory haf,
                                        StatementRegistrar registrar) {
-        boolean writersAreActive = g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
-                                                                                                     this.actualReturn));
+        boolean writersAreActive = false;
+        if (this.actualReturn != null) {
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+                                                                                                  this.actualReturn));
+        }
 
         ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
 
