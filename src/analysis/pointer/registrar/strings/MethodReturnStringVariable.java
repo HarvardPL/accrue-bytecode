@@ -30,4 +30,9 @@ public class MethodReturnStringVariable implements StringVariable {
         return false;
     }
 
+    @Override
+    public String toString() {
+        return "MethodReturnStringVariable [method=" + method + ", type=" + type + "]";
+    }
+
 }
