@@ -25,4 +25,13 @@ public class StringVariableFactory {
     public static StringVariable makeField(IField f) {
         return FieldStringVariable.make(f);
     }
+
+    public static StringVariable makeNativeParameterString(IMethod method, int i) {
+        return NativeParameterStringVariable.makeString(method, i);
+    }
+
+    public static StringVariable makeNativeParameterStringBuilder(IMethod method, int i) {
+        return NativeParameterStringVariable.makeStringBuilder(method, i);
+    }
+
 }

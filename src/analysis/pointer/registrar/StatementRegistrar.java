@@ -834,6 +834,7 @@ public class StatementRegistrar {
                 + " ; " + i;
 
         for (int j = 1; j < i.getNumberOfParameters(); ++j) {
+            // we use j-1 here because MethodReference objects do not count the `this` argument as a parmater.
             if (StringAndReflectiveUtil.isStringType(declaredTarget.getParameterType(j - 1))) {
                 StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 // we use j here, not j-1, because IMethod's will include the `this` parameter,
@@ -856,7 +857,8 @@ public class StatementRegistrar {
         MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee);
         StringVariable formalReturn;
         StringVariable actualReturn;
-        if (summary.getRet() == null) {
+        if (summary.getRet() == null || i.getNumberOfReturnValues() == 0
+                || !StringAndReflectiveUtil.isStringType(resolvedCallee.getReturnType())) {
             formalReturn = null;
             actualReturn = null;
         }
@@ -867,45 +869,29 @@ public class StatementRegistrar {
             assert actualReturn != null;
         }
 
-        ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
-        if (i.isStatic()) {
-            assert i.getNumberOfParameters() == resolvedCallee.getNumberOfParameters() : "args == params : "
-                    + i.getNumberOfParameters() + " == " + resolvedCallee.getNumberOfParameters() + " ; " + i;
+        // Specials:
+        //  - init (becuase we know what the receiver is),
+        //  - private (because the receiver is obvious from the class definition), and
+        //  - super (because the super is declared in the class definition)
+        //
+        // resolved IMethod's (unlike MethodReferences) include `this`  in getNumberOfParameters()
 
-            for (int j = 0; j < i.getNumberOfUses(); ++j) {
-                if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
-                    StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
-                    StringVariable parameter = summary.getFormals().get(j);
-                    assert argument != null;
-                    assert parameter != null;
-                    OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
-                    stringArgumentAndParameters.add(pair);
-                }
+        ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
+        assert i.getNumberOfParameters() == resolvedCallee.getNumberOfParameters() : "args == params : "
+                + i.getNumberOfParameters() + " == " + resolvedCallee.getNumberOfParameters() + " ; " + i;
+
+        // For specials the getNumberOfUses will include `this`, for static methods
+        // the getNumberOfUses will not include `this`. MethodStringSummary objects use the same
+        // convention for what "Parameter" means.
+        for (int j = 0; j < i.getNumberOfUses(); ++j) {
+            if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
+                StringVariable parameter = summary.getFormals().get(j);
+                assert argument != null;
+                assert parameter != null;
+                OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
+                stringArgumentAndParameters.add(pair);
             }
-        }
-        else if (i.isSpecial()) {
-            // Specials:
-            //  - init (becuase we know what the receiver is),
-            //  - private (because the receiver is obvious from the class definition), and
-            //  - super (because the super is declared in the class definition)
-            //
-            // resolved IMethod's (unlike MethodReferences) include `this`  in getNumberOfParameters()
-            assert (i.getNumberOfParameters() == resolvedCallee.getNumberOfParameters()) : "args == params : "
-                    + i.getNumberOfParameters() + " == " + resolvedCallee.getNumberOfParameters() + " ; " + i;
-            // first use is `this`, so we skip it
-            for (int j = 1; j < i.getNumberOfUses(); ++j) {
-                if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
-                    StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
-                    StringVariable parameter = summary.getFormals().get(j);
-                    assert argument != null;
-                    assert parameter != null;
-                    OrderedPair<StringVariable, StringVariable> pair = new OrderedPair<>(argument, parameter);
-                    stringArgumentAndParameters.add(pair);
-                }
-            }
-        }
-        else {
-            throw new RuntimeException("Only static or special methods should be given to this method.");
         }
 
         this.addStringStatement(stmtFactory.staticOrSpecialMethodCallString(i,
@@ -1587,8 +1573,13 @@ public class StatementRegistrar {
         MethodStringSummary summary = this.methodStringSummaries.get(method);
         if (summary == null) {
             IR ir = AnalysisUtil.getIR(method);
-            FlowSensitiveStringVariableFactory stringVariableFactory = this.getOrCreateStringVariableFactory(method);
-            summary = MethodStringSummary.make(stringVariableFactory, method, ir);
+            if (ir == null) {
+                summary = MethodStringSummary.makeNative(method);
+            }
+            else {
+                FlowSensitiveStringVariableFactory stringVariableFactory = this.getOrCreateStringVariableFactory(method);
+                summary = MethodStringSummary.make(stringVariableFactory, method, ir);
+            }
             MethodStringSummary previous = this.methodStringSummaries.putIfAbsent(method, summary);
             return previous == null ? summary : previous;
         }

@@ -5,7 +5,9 @@ import java.util.List;
 
 import analysis.StringAndReflectiveUtil;
 import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringVariableFactory;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
 
@@ -38,6 +40,23 @@ public class MethodStringSummary {
         return new MethodStringSummary(ret, formals);
     }
 
+    public static MethodStringSummary makeNative(IMethod method) {
+        StringVariable ret = StringVariableFactory.makeMethodReturnString(method);
+        List<StringVariable> formals = new ArrayList<>(method.getNumberOfParameters());
+        for (int i = 0; i < method.getNumberOfParameters(); ++i) {
+            IClass parameterType = StringAndReflectiveUtil.typeReferenceToIClass(method.getParameterType(i));
+            if (StringAndReflectiveUtil.JavaLangStringIClass.equals(parameterType)) {
+                formals.add(StringVariableFactory.makeNativeParameterString(method, i));
+            }
+            else if (StringAndReflectiveUtil.JavaLangStringBuilderIClass.equals(parameterType)) {
+                formals.add(StringVariableFactory.makeNativeParameterStringBuilder(method, i));
+            } else {
+                formals.add(null);
+            }
+        }
+        return new MethodStringSummary(ret, formals);
+    }
+
     private MethodStringSummary(StringVariable ret, List<StringVariable> formals) {
         this.ret = ret;
         this.formals = formals;
@@ -50,4 +69,5 @@ public class MethodStringSummary {
     public List<StringVariable> getFormals() {
         return this.formals;
     }
+
 }
