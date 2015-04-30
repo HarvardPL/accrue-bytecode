@@ -42,7 +42,12 @@ public final class FiniteSet<T> {
     }
 
     public static <T> FiniteSet<T> makeFiniteSet(int maxSize, Collection<T> items) {
-        return new FiniteSet<>(maxSize, new HashSet<>(items));
+        if (items.size() > maxSize) {
+            return getTop();
+        }
+        else {
+            return new FiniteSet<>(maxSize, new HashSet<>(items));
+        }
     }
 
     /*
@@ -57,7 +62,8 @@ public final class FiniteSet<T> {
 
     /* constructors */
     private FiniteSet(int maxSize, Set<T> items) {
-        assert (maxSize < 0 && items == null) || (items != null && items.size() <= maxSize);
+        assert (maxSize < 0 && items == null) || (items != null && items.size() <= maxSize) : "maxSize is " + maxSize
+                + " and items is " + items;
         this.maxSize = maxSize;
         this.items = items;
     }
