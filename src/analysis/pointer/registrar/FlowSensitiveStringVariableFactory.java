@@ -142,7 +142,7 @@ public final class FlowSensitiveStringVariableFactory {
 
     @SuppressWarnings("static-method")
     public boolean isStringType(TypeReference resultType) {
-        return StringAndReflectiveUtil.isStringType(resultType);
+        return StringAndReflectiveUtil.isStringLikeType(resultType);
     }
 
     @SuppressWarnings("static-method")

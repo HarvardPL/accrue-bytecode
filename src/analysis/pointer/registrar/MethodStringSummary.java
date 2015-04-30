@@ -20,7 +20,7 @@ public class MethodStringSummary {
     public static MethodStringSummary make(FlowSensitiveStringVariableFactory stringVariableFactory, IMethod method,
                                            IR ir) {
         StringVariable ret;
-        if (StringAndReflectiveUtil.isStringType(method.getReturnType())) {
+        if (StringAndReflectiveUtil.isStringLikeType(method.getReturnType())) {
             ret = stringVariableFactory.getOrCreateMethodReturn(method);
         }
         else {
@@ -29,7 +29,7 @@ public class MethodStringSummary {
 
         List<StringVariable> formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); ++i) {
-            if (StringAndReflectiveUtil.isStringType(method.getParameterType(i))) {
+            if (StringAndReflectiveUtil.isStringLikeType(method.getParameterType(i))) {
                 formals.add(stringVariableFactory.getOrCreateParamDef(ir.getParameter(i)));
             }
             else {

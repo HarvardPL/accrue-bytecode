@@ -245,11 +245,11 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
         else {
             Set<Integer> possiblyDefined = new HashSet<>();
             if (i.getNumberOfReturnValues() != 0
-                    && StringAndReflectiveUtil.isStringType(this.typeRepository.getType(i.getDef()))) {
+                    && StringAndReflectiveUtil.isStringLikeType(this.typeRepository.getType(i.getDef()))) {
                 possiblyDefined.add(i.getDef());
             }
             for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                if (StringAndReflectiveUtil.isStringType(this.typeRepository.getType(i.getUse(j)))) {
+                if (StringAndReflectiveUtil.isStringLikeType(this.typeRepository.getType(i.getUse(j)))) {
                     possiblyDefined.add(i.getUse(j));
                 }
             }

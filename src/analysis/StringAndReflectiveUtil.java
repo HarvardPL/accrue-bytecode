@@ -99,7 +99,7 @@ public class StringAndReflectiveUtil {
         return AnalysisUtil.getClassHierarchy().lookupClass(tr);
     }
 
-    public static boolean isStringType(TypeReference t) {
+    public static boolean isStringLikeType(TypeReference t) {
         if (t == null) {
             return false;
         }

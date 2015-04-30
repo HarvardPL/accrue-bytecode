@@ -547,7 +547,7 @@ public class StatementRegistrar {
         FieldReference f = i.getDeclaredField();
         this.addStatement(stmtFactory.fieldToLocal(v, o, f, ir.getMethod()));
 
-        if (StringAndReflectiveUtil.isStringType(resultType)) {
+        if (StringAndReflectiveUtil.isStringLikeType(resultType)) {
             StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
             this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
         }
@@ -572,7 +572,7 @@ public class StatementRegistrar {
         ReferenceVariable f = rvFactory.getOrCreateStaticField(i.getDeclaredField());
         this.addStatement(stmtFactory.staticFieldToLocal(v, f, ir.getMethod()));
 
-        if (StringAndReflectiveUtil.isStringType(resultType)) {
+        if (StringAndReflectiveUtil.isStringLikeType(resultType)) {
             StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
             StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
             this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, i.getDeclaredField()
@@ -602,7 +602,7 @@ public class StatementRegistrar {
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), receiverType, ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToField(o, f, v, ir.getMethod(), i));
 
-        if (StringAndReflectiveUtil.isStringType(valueType)) {
+        if (StringAndReflectiveUtil.isStringLikeType(valueType)) {
             StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
             StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
             this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod()));
@@ -627,7 +627,7 @@ public class StatementRegistrar {
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), valueType, ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToStaticField(f, v, ir.getMethod(), i));
 
-        if (StringAndReflectiveUtil.isStringType(valueType)) {
+        if (StringAndReflectiveUtil.isStringLikeType(valueType)) {
             StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
             StringVariable svvuse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
             StringVariable svvdef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
@@ -818,7 +818,7 @@ public class StatementRegistrar {
                                                FlowSensitiveStringVariableFactory stringVariableFactory,
                                                ReferenceVariable receiver, ReferenceVariable exception) {
         StringVariable returnToVariable;
-        if (StringAndReflectiveUtil.isStringType(i.getDeclaredResultType())) {
+        if (StringAndReflectiveUtil.isStringLikeType(i.getDeclaredResultType())) {
             returnToVariable = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
             assert returnToVariable != null;
         }
@@ -835,7 +835,7 @@ public class StatementRegistrar {
 
         for (int j = 1; j < i.getNumberOfParameters(); ++j) {
             // we use j-1 here because MethodReference objects do not count the `this` argument as a parmater.
-            if (StringAndReflectiveUtil.isStringType(declaredTarget.getParameterType(j - 1))) {
+            if (StringAndReflectiveUtil.isStringLikeType(declaredTarget.getParameterType(j - 1))) {
                 StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 // we use j here, not j-1, because IMethod's will include the `this` parameter,
                 // unlike a MethodReference, which does not include it.
@@ -858,7 +858,7 @@ public class StatementRegistrar {
         StringVariable formalReturn;
         StringVariable actualReturn;
         if (summary.getRet() == null || i.getNumberOfReturnValues() == 0
-                || !StringAndReflectiveUtil.isStringType(resolvedCallee.getReturnType())) {
+                || !StringAndReflectiveUtil.isStringLikeType(resolvedCallee.getReturnType())) {
             formalReturn = null;
             actualReturn = null;
         }
@@ -884,7 +884,7 @@ public class StatementRegistrar {
         // the getNumberOfUses will not include `this`. MethodStringSummary objects use the same
         // convention for what "Parameter" means.
         for (int j = 0; j < i.getNumberOfUses(); ++j) {
-            if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
+            if (StringAndReflectiveUtil.isStringLikeType(resolvedCallee.getParameterType(j))) {
                 StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 StringVariable parameter = summary.getFormals().get(j);
                 assert argument != null;
@@ -1040,7 +1040,7 @@ public class StatementRegistrar {
         }
         this.addStatement(stmtFactory.phiToLocal(assignee, uses, ir.getMethod()));
 
-        if (StringAndReflectiveUtil.isStringType(phiType)) {
+        if (StringAndReflectiveUtil.isStringLikeType(phiType)) {
             StringVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
             List<StringVariable> svuses = new ArrayList<>(i.getNumberOfUses());
             for (int j = 0; j < i.getNumberOfUses(); ++j) {
@@ -1086,7 +1086,7 @@ public class StatementRegistrar {
         ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
 
-        if (StringAndReflectiveUtil.isStringType(ir.getMethod().getReturnType())) {
+        if (StringAndReflectiveUtil.isStringLikeType(ir.getMethod().getReturnType())) {
             StringVariable sv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult());
             StringVariable formalReturn = this.findOrCreateStringMethodSummary(ir.getMethod()).getRet();
             this.addStringStatement(stmtFactory.localToLocalString(formalReturn, sv, ir.getMethod(), i));
