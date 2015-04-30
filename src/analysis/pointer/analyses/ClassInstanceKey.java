@@ -48,7 +48,7 @@ public class ClassInstanceKey implements InstanceKey {
     private boolean allNonNull(FiniteSet<IClass> fs) {
         if (!fs.isTop()) {
             for (IClass rType : fs.getSet()) {
-                if (rType != null) {
+                if (rType == null) {
                     return false;
                 }
             }
