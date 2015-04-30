@@ -100,4 +100,35 @@ public final class AString {
         return "SIK(" + this.fs.toString() + ")";
     }
 
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((fs == null) ? 0 : fs.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (!(obj instanceof AString)) {
+            return false;
+        }
+        AString other = (AString) obj;
+        if (fs == null) {
+            if (other.fs != null) {
+                return false;
+            }
+        }
+        else if (!fs.equals(other.fs)) {
+            return false;
+        }
+        return true;
+    }
+
 }
