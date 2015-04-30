@@ -132,4 +132,13 @@ public class StringAndReflectiveUtil {
         return im.equals(systemGetProperty1IMethod) || im.equals(systemGetProperty2IMethod)
                 || im.equals(securityGetPropertyIMethod);
     }
+
+    public static boolean isStringBuilderType(TypeReference t) {
+        if (t == null) {
+            return false;
+        } else {
+            IClass iclass = typeReferenceToIClass(t);
+            return iclass != null && iclass.equals(JavaLangStringBuilderIClass);
+        }
+    }
 }

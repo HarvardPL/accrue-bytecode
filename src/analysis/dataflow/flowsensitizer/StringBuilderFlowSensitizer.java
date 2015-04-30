@@ -74,26 +74,39 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
      */
 
     private SensitizerFact definedAt(SensitizerFact fact, Integer varNum, SSAInstruction i) {
-        //        System.err.println("[definedAt] varNum: " + varNum);
-        //        System.err.println("[definedAt] before: " + fact);
-        Set<Integer> s = new HashSet<>();
-        s.add(getSubscriptForInstruction(i));
-        SensitizerFact fact2 = fact.replaceSetAt(varNum, s);
-        //        System.err.println("[definedAt] after: " + fact2);
-        return fact2;
+        if (fact.isEscaped(varNum)) {
+            return fact;
+        }
+        else {
+            Set<Integer> s = new HashSet<>();
+            s.add(getSubscriptForInstruction(i));
+            SensitizerFact fact2 = fact.replaceSetAt(varNum, s);
+            return fact2;
+        }
     }
 
     private SensitizerFact manyDefinedAt(SensitizerFact fact, Set<Integer> varNums, SSAInstruction i) {
         Set<OrderedPair<Integer, Set<Integer>>> updates = new HashSet<>();
 
         for (Integer varNum : varNums) {
-            Set<Integer> s = new HashSet<>();
-            s.add(getSubscriptForInstruction(i));
-            OrderedPair<Integer, Set<Integer>> update = new OrderedPair<>(varNum, s);
-            updates.add(update);
+            if (!fact.isEscaped(varNum)) {
+                Set<Integer> s = new HashSet<>();
+                s.add(getSubscriptForInstruction(i));
+                OrderedPair<Integer, Set<Integer>> update = new OrderedPair<>(varNum, s);
+                updates.add(update);
+            }
         }
 
         return fact.replaceSetsAt(updates);
+    }
+
+    private SensitizerFact escapesIfStringBuilder(SensitizerFact fact, int varNum) {
+        if (StringAndReflectiveUtil.isStringBuilderType(this.typeRepository.getType(varNum))) {
+            return fact.addEscapee(varNum);
+        }
+        else {
+            return fact;
+        }
     }
 
     private int getSubscriptForInstruction(SSAInstruction i) {
@@ -243,17 +256,17 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
             return sameForAllSuccessors(succNodes, definedAt(fact, arg, i));
         }
         else {
-            Set<Integer> possiblyDefined = new HashSet<>();
+            SensitizerFact newfact = fact;
             if (i.getNumberOfReturnValues() != 0
                     && StringAndReflectiveUtil.isStringLikeType(this.typeRepository.getType(i.getDef()))) {
-                possiblyDefined.add(i.getDef());
+                newfact = definedAt(newfact, i.getDef(), i);
             }
             for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                if (StringAndReflectiveUtil.isStringLikeType(this.typeRepository.getType(i.getUse(j)))) {
-                    possiblyDefined.add(i.getUse(j));
+                if (StringAndReflectiveUtil.isStringBuilderType(this.typeRepository.getType(i.getUse(j)))) {
+                    newfact = newfact.addEscapee(i.getUse(j));
                 }
             }
-            return sameForAllSuccessors(succNodes, manyDefinedAt(fact, possiblyDefined, i));
+            return sameForAllSuccessors(succNodes, newfact);
         }
     }
 
@@ -290,7 +303,8 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
     @Override
     protected SensitizerFact flowGetStatic(SSAGetInstruction i, Set<SensitizerFact> previousItems,
                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return joinMaps(previousItems);
+        SensitizerFact fact = joinMaps(previousItems);
+        return escapesIfStringBuilder(fact, i.getDef());
     }
 
     @Override
@@ -308,7 +322,8 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
     @Override
     protected SensitizerFact flowPutStatic(SSAPutInstruction i, Set<SensitizerFact> previousItems,
                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return joinMaps(previousItems);
+        SensitizerFact fact = joinMaps(previousItems);
+        return escapesIfStringBuilder(fact, i.getUse(i.getNumberOfUses() - 1));
     }
 
     @Override
@@ -370,7 +385,9 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
     protected Map<ISSABasicBlock, SensitizerFact> flowGetField(SSAGetInstruction i, Set<SensitizerFact> previousItems,
                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+        SensitizerFact fact = joinMaps(previousItems);
+        fact = escapesIfStringBuilder(fact, i.getDef());
+        return sameForAllSuccessors(cfg.getSuccNodes(current), fact);
     }
 
     @Override
@@ -446,7 +463,9 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
     protected Map<ISSABasicBlock, SensitizerFact> flowPutField(SSAPutInstruction i, Set<SensitizerFact> previousItems,
                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+        SensitizerFact fact = joinMaps(previousItems);
+        fact = escapesIfStringBuilder(fact, i.getUse(i.getNumberOfUses() - 1));
+        return sameForAllSuccessors(cfg.getSuccNodes(current), fact);
     }
 
     @Override

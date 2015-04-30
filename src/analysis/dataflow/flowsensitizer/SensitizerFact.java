@@ -12,13 +12,15 @@ import util.OrderedPair;
 
 public class SensitizerFact {
     private final Map<Integer, Set<Integer>> m;
+    private final Set<Integer> escaped;
 
     public static SensitizerFact makeBottom() {
-        return new SensitizerFact(new HashMap<Integer, Set<Integer>>());
+        return new SensitizerFact(new HashMap<Integer, Set<Integer>>(), new HashSet<Integer>());
     }
 
-    private SensitizerFact(Map<Integer, Set<Integer>> m) {
+    private SensitizerFact(Map<Integer, Set<Integer>> m, Set<Integer> escaped) {
         this.m = m;
+        this.escaped = escaped;
     }
 
     public SensitizerFact addToSetAt(int var, int sensitizer) {
@@ -33,7 +35,7 @@ public class SensitizerFact {
             m.put(var, s);
         }
 
-        return new SensitizerFact(m);
+        return new SensitizerFact(m, this.escaped);
     }
 
     public SensitizerFact replaceSetAt(int var, Set<Integer> s) {
@@ -41,7 +43,7 @@ public class SensitizerFact {
 
         m.put(var, s);
 
-        return new SensitizerFact(m);
+        return new SensitizerFact(m, this.escaped);
     }
 
     public SensitizerFact replaceSetsAt(Set<OrderedPair<Integer, Set<Integer>>> updates) {
@@ -53,7 +55,17 @@ public class SensitizerFact {
             m.put(key, s);
         }
 
-        return new SensitizerFact(m);
+        return new SensitizerFact(m, this.escaped);
+    }
+
+    public SensitizerFact addEscapee(int var) {
+        Set<Integer> escaped = new HashSet<>(this.escaped);
+        escaped.add(var);
+        return new SensitizerFact(m, escaped);
+    }
+
+    public boolean isEscaped(int var) {
+        return escaped.contains(var);
     }
 
     public SensitizerFact join(SensitizerFact that) {
@@ -71,7 +83,7 @@ public class SensitizerFact {
             }
         }
 
-        return new SensitizerFact(m);
+        return new SensitizerFact(m, this.escaped);
     }
 
     public Map<Integer, Set<Integer>> getMap() {
