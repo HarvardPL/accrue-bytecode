@@ -74,7 +74,30 @@ public class StringMethodCall extends StringStatement {
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
                                        StmtAndContext originator, HeapAbstractionFactory haf,
                                        StatementRegistrar registrar) {
-        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.result));
+        boolean writersAreActive = false;
+
+        switch (this.invokedMethod) {
+        case concatM: {
+            // the first argument is a copy of the "this" argument
+            assert this.arguments.size() == 2 : this.arguments.size();
+
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+                                                                                                  this.receiverDef));
+
+            break;
+        }
+        case toStringM: {
+
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.result));
+
+            break;
+        }
+        default: {
+            throw new RuntimeException("Unhandled case of invokedMethod: " + this.invokedMethod);
+        }
+        }
+
+        return writersAreActive;
     }
 
     @Override
