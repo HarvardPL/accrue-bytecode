@@ -20,6 +20,14 @@ public class RWSATest {
         //            Object o = indirection(fullyQualifiedClassName);
         //            Object o2 = indirection(fullyQualifiedClassName);
         //        }
+        {
+            StringBuilder classNameBranchSB = new StringBuilder();
+
+            classNameBranchSB.append("java.");
+            classNameBranchSB.append("lang.");
+            classNameBranchSB.append("Security");
+            Object oBranch = Class.forName(classNameBranchSB.toString()).newInstance();
+        }
 
         /*
          * same code but branching test
