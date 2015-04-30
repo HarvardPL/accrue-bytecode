@@ -62,15 +62,19 @@ public class FieldToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                    StmtAndContext originator, StatementRegistrar registrar) {
         PointsToGraphNode oRVR = new ReferenceVariableReplica(context, this.o, haf);
+
+        GraphDelta changes = new GraphDelta(g);
 
         for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
             ObjectField f = new ObjectField(oIK, this.field);
 
-            g.activateStringSolutionVariable(f);
+            changes.combine(g.activateStringSolutionVariable(f));
         }
+
+        return changes;
     }
 
     @Override

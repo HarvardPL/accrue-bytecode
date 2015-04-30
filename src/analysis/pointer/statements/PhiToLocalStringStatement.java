@@ -52,11 +52,15 @@ public class PhiToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
+        GraphDelta changes = new GraphDelta(g);
+
         for (StringVariable use : uses) {
-            g.activateStringSolutionVariable(new StringVariableReplica(context, use));
+            changes.combine(g.activateStringSolutionVariable(new StringVariableReplica(context, use)));
         }
+
+        return changes;
     }
 
     @Override

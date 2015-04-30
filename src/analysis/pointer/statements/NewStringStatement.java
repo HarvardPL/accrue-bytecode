@@ -46,9 +46,10 @@ public class NewStringStatement extends StringStatement {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
         // no reads
+        return new GraphDelta(g);
     }
 
     @Override

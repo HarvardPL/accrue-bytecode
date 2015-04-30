@@ -100,18 +100,20 @@ public class GetPropertyStatement extends StringStatement {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
         List<StringVariableReplica> argumentsvrs = new ArrayList<>();
         for (StringVariable argument : this.arguments) {
             argumentsvrs.add(new StringVariableReplica(context, argument));
         }
 
+        GraphDelta changes = new GraphDelta(g);
+
         switch (this.arguments.size()) {
         case 1:
         case 2: {
             for (StringVariableReplica argument : argumentsvrs) {
-                g.activateStringSolutionVariable(argument);
+                changes.combine(g.activateStringSolutionVariable(argument));
             }
             break;
         }
@@ -119,6 +121,7 @@ public class GetPropertyStatement extends StringStatement {
             throw new RuntimeException("unreachable");
         }
 
+        return changes;
     }
 
     @Override

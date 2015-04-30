@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import util.Logger;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -31,9 +32,9 @@ public abstract class StringStatement implements ConstraintStatement {
                                                       PointsToIterable pti, StmtAndContext originator,
                                                       StatementRegistrar registrar);
 
-    protected abstract void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                            PointsToIterable pti, StmtAndContext originator,
-                                            StatementRegistrar registrar);
+    protected abstract GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                                PointsToIterable pti, StmtAndContext originator,
+                                                StatementRegistrar registrar);
 
     protected abstract GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                                  PointsToIterable pti, StatementRegistrar registrar,
@@ -44,15 +45,20 @@ public abstract class StringStatement implements ConstraintStatement {
                                     StatementRegistrar registrar, StmtAndContext originator) {
         PointsToIterable pti = delta == null ? g : delta;
 
+        GraphDelta changes = new GraphDelta(g);
+
         this.registerWriteDependencies(context, haf, g, pti, originator, registrar);
         if (this.writersAreActive(context, g, pti, originator, haf, registrar)) {
-            this.activateReads(context, haf, g, pti, originator, registrar);
             this.registerReadDependencies(context, haf, g, pti, originator, registrar);
-            return this.updateSolution(context, haf, g, pti, registrar, originator);
+            changes.combine(this.activateReads(context, haf, g, pti, originator, registrar));
+            Logger.println("updateSolution: " + this.toString());
+            changes.combine(this.updateSolution(context, haf, g, pti, registrar, originator));
         }
         else {
-            return new GraphDelta(g);
+            Logger.println("notActive: " + this.toString());
         }
+
+        return changes;
     }
 
     @Override

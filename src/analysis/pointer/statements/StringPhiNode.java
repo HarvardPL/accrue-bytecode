@@ -53,13 +53,16 @@ public class StringPhiNode extends StringStatement {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
+        GraphDelta changes = new GraphDelta(g);
+
         for (StringVariable dependency : dependencies) {
             StringVariableReplica dependentSVR = new StringVariableReplica(context, dependency);
-            g.activateStringSolutionVariable(dependentSVR);
+            changes.combine(g.activateStringSolutionVariable(dependentSVR));
         }
 
+        return changes;
     }
 
     @Override

@@ -123,9 +123,11 @@ public class VirtualMethodCallString extends MethodCallString {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
+
+        GraphDelta changes = new GraphDelta(g);
 
         for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
@@ -133,17 +135,18 @@ public class VirtualMethodCallString extends MethodCallString {
 
             for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
                 StringVariableReplica argument = new StringVariableReplica(context, pair.fst());
-                g.activateStringSolutionVariable(argument);
+                changes.combine(g.activateStringSolutionVariable(argument));
             }
 
             assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
             if (actualReturn != null) {
                 StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
 
-                g.activateStringSolutionVariable(actualReturnSVR);
+                changes.combine(g.activateStringSolutionVariable(actualReturnSVR));
             }
         }
 
+        return changes;
     }
 
     @Override

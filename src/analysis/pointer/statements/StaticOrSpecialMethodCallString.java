@@ -84,21 +84,24 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
+        GraphDelta changes = new GraphDelta(g);
+
         for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
             StringVariableReplica argumentsvr = new StringVariableReplica(context, argumentAndParameter.fst());
 
-            g.activateStringSolutionVariable(argumentsvr);
+            changes.combine(g.activateStringSolutionVariable(argumentsvr));
         }
 
         assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
         if (actualReturn != null) {
             StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
 
-            g.activateStringSolutionVariable(formalReturnSVR);
+            changes.combine(g.activateStringSolutionVariable(formalReturnSVR));
         }
 
+        return changes;
     }
 
     @Override

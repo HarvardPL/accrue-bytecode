@@ -51,11 +51,11 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
         StringVariableReplica fRVR = new StringVariableReplica(context, this.f);
 
-        g.activateStringSolutionVariable(fRVR);
+        return g.activateStringSolutionVariable(fRVR);
     }
 
     @Override

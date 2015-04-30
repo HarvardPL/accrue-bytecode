@@ -3,7 +3,6 @@ package analysis.pointer.statements;
 import java.util.ArrayList;
 import java.util.List;
 
-import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
 import analysis.pointer.analyses.AString;
@@ -139,26 +138,28 @@ public class StringMethodCall extends StringStatement {
     }
 
     @Override
-    protected void activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
-                                 StmtAndContext originator, StatementRegistrar registrar) {
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                       PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
         StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
         List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
         for (StringVariable argument : this.arguments) {
             argumentSVRs.add(new StringVariableReplica(context, argument));
         }
 
+        GraphDelta changes = new GraphDelta(g);
+
         switch (this.invokedMethod) {
         case concatM: {
             // the first argument is a copy of the "this" argument
             assert this.arguments.size() == 2 : this.arguments.size();
 
-            g.activateStringSolutionVariable(receiverUseSVR);
-            g.activateStringSolutionVariable(argumentSVRs.get(1));
+            changes.combine(g.activateStringSolutionVariable(receiverUseSVR));
+            changes.combine(g.activateStringSolutionVariable(argumentSVRs.get(1)));
 
             break;
         }
         case toStringM: {
-            g.activateStringSolutionVariable(receiverUseSVR);
+            changes.combine(g.activateStringSolutionVariable(receiverUseSVR));
 
             break;
         }
@@ -167,6 +168,7 @@ public class StringMethodCall extends StringStatement {
         }
         }
 
+        return changes;
     }
 
     @Override
@@ -180,7 +182,6 @@ public class StringMethodCall extends StringStatement {
             argumentSVRs.add(new StringVariableReplica(context, argument));
         }
 
-        Logger.println("[StringMethodCall." + this.invokedMethod + "] " + this);
         switch (this.invokedMethod) {
         case concatM: {
             // the first argument is a copy of the "this" argument
