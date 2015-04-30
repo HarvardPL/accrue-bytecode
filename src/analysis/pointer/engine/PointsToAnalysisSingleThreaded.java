@@ -398,7 +398,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             System.err.println("\tPROCESSING: " + sac);
         }
 
-        Logger.push(false /*s.getMethod().toString().contains("main")*/);
+        Logger.push(s.getMethod().toString().contains("main"));
         GraphDelta changed = s.process(c, this.haf, g, delta, registrar, sac);
         Logger.pop();
 
