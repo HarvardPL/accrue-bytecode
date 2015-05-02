@@ -46,20 +46,23 @@ public class StringAndReflectiveUtil {
     private static final MethodReference stringBuilderAppendObjectMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
                                                                                                         appendAtom,
                                                                                                         appendObjectDesc);
-    private static final MethodReference stringBuilderInitMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                MethodReference.initSelector);
+    private static final MethodReference stringBuilderInit0Method = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
+                                                                                                 MethodReference.initSelector);
     private static final MethodReference abstractStringBuilderInitMethod = MethodReference.findOrCreate(JavaLangAbstractStringBuilderTypeReference,
                                                                                                         MethodReference.initSelector);
     public static final IMethod stringBuilderAppendStringBuilderIMethod = methodReferenceToIMethod(stringBuilderAppendStringBuilderMethod);
     public static final IMethod stringBuilderAppendStringIMethod = methodReferenceToIMethod(stringBuilderAppendStringMethod);
     public static final IMethod stringBuilderAppendObjectIMethod = methodReferenceToIMethod(stringBuilderAppendObjectMethod);
-    public static final IMethod stringBuilderInitIMethod = methodReferenceToIMethod(stringBuilderInitMethod);
+    public static final IMethod stringBuilderInit0IMethod = methodReferenceToIMethod(stringBuilderInit0Method);
+    public static final IMethod stringBuilderInit1IMethod = getIMethod(JavaLangStringBuilderTypeReference,
+                                                                       "<init>",
+                                                                       "(Ljava/lang/String;)V");
     public static final IMethod abstractStringBuilderInitIMethod = methodReferenceToIMethod(abstractStringBuilderInitMethod);
     public static final IMethod stringBuilderToStringIMethod = getIMethod(JavaLangStringBuilderTypeReference,
                                                                           "toString",
                                                                           "()Ljava/lang/String;");
-    private static final IMethod stringInitMethod = getIMethod(JavaLangStringTypeReference,
-                                                               MethodReference.initSelector);
+    private static final IMethod stringInit0IMethod = getIMethod(JavaLangStringTypeReference,
+                                                                MethodReference.initSelector);
 
     private static final TypeReference JavaLangSystemTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                 TypeName.string2TypeName("Ljava/lang/System"));
@@ -74,8 +77,14 @@ public class StringAndReflectiveUtil {
     private static final IMethod securityGetPropertyIMethod = getIMethod(JavaLangSecurityTypeReference,
                                                                          "getProperty",
                                                                          "(Ljava/lang/String;)Ljava/lang/String;");
+    public static final IMethod stringToStringIMethod = getIMethod(JavaLangStringTypeReference,
+                                                                   "toString",
+                                                                   "()Ljava/lang/String;");
+    private static final Object stringValueOfIMethod = getIMethod(JavaLangStringTypeReference,
+                                                                  "valueOf",
+                                                                  "(Ljava/lang/Object;)Ljava/lang/String;");
 
-    private static IMethod methodReferenceToIMethod(MethodReference m) {
+    public static IMethod methodReferenceToIMethod(MethodReference m) {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
     }
 
@@ -112,19 +121,32 @@ public class StringAndReflectiveUtil {
 
     public static boolean isStringMutatingMethod(MethodReference m) {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
-        return im.equals(stringBuilderAppendObjectIMethod) || im.equals(stringBuilderAppendStringBuilderIMethod)
-                || im.equals(stringBuilderAppendStringIMethod) || im.equals(stringBuilderInitIMethod);
+        return im.equals(stringBuilderAppendStringBuilderIMethod) || im.equals(stringBuilderAppendStringIMethod)
+                || im.equals(stringBuilderInit0IMethod) || im.equals(stringBuilderInit1IMethod)
+                || im.equals(stringInit0IMethod);
     }
 
     public static boolean isStringMethod(MethodReference m) {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
-        return im.equals(stringBuilderAppendStringBuilderIMethod) || im.equals(stringBuilderAppendStringIMethod)
-                || im.equals(stringBuilderToStringIMethod);
+        return isStringMutatingMethod(m) || im.equals(stringBuilderToStringIMethod) || im.equals(stringToStringIMethod);
     }
 
     public static boolean isStringInitMethod(MethodReference m) {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
-        return im.equals(stringBuilderInitIMethod) || im.equals(stringInitMethod);
+        return isStringInit0Method(im) || isStringInit1Method(im);
+    }
+
+    public static boolean isStringInit0Method(IMethod im) {
+        return im.equals(stringBuilderInit0IMethod) || im.equals(stringInit0IMethod);
+    }
+
+    public static boolean isStringInit1Method(IMethod im) {
+        return im.equals(stringBuilderInit1IMethod);
+    }
+
+    public static boolean isValueOf(MethodReference m) {
+        IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
+        return im.equals(stringValueOfIMethod);
     }
 
     public static boolean isGetPropertyCall(MethodReference methodReference) {
@@ -136,9 +158,17 @@ public class StringAndReflectiveUtil {
     public static boolean isStringBuilderType(TypeReference t) {
         if (t == null) {
             return false;
-        } else {
+        }
+        else {
             IClass iclass = typeReferenceToIClass(t);
             return iclass != null && iclass.equals(JavaLangStringBuilderIClass);
         }
     }
+
+    public static boolean resultAndReceiverAliasMethod(MethodReference m) {
+        IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
+        return im.equals(stringBuilderAppendObjectIMethod) || im.equals(stringBuilderAppendStringBuilderIMethod)
+                || im.equals(stringBuilderAppendStringIMethod);
+    }
+
 }

@@ -36,7 +36,18 @@ public class LocalToFieldStringStatement extends StringStatement {
 
     @Override
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
-        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.vDef));
+        ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
+        StringVariableReplica vDefSVR = new StringVariableReplica(context, this.vDef);
+
+        boolean writersAreActive = false;
+
+        writersAreActive |= g.stringSolutionVariableReplicaIsActive(vDefSVR);
+
+        for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
+            ObjectField of = new ObjectField(oIK, this.f);
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(of);
+        }
+        return writersAreActive;
     }
 
     @Override
@@ -88,10 +99,12 @@ public class LocalToFieldStringStatement extends StringStatement {
         for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
 
-            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(of, vUseSVR));
-            // XXX: Hack to deal with escape
-            newDelta.combine(g.stringSolutionVariableReplicaJoinAt(vDefSVR, ((ReflectiveHAF) haf).getAStringTop()));
+            if (g.stringSolutionVariableReplicaIsActive(of)) {
+                newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(of, vUseSVR));
+            }
         }
+        // XXX: Hack to deal with escape
+        newDelta.combine(g.stringSolutionVariableReplicaJoinAt(vDefSVR, ((ReflectiveHAF) haf).getAStringTop()));
 
         return newDelta;
     }

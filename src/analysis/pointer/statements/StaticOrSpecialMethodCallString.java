@@ -20,14 +20,17 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     private final List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters;
     private final StringVariable formalReturn;
     private final StringVariable actualReturn;
+    private final IMethod targetMethod;
 
     public StaticOrSpecialMethodCallString(IMethod method,
                                            List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
-                                           StringVariable returnedVariable, StringVariable returnToVariable) {
+                                           StringVariable returnedVariable, StringVariable returnToVariable,
+                                           IMethod targetMethod) {
         super(method);
         this.stringArgumentAndParameters = stringArgumentAndParameters;
         this.formalReturn = returnedVariable;
         this.actualReturn = returnToVariable;
+        this.targetMethod = targetMethod;
     }
 
     @Override
@@ -116,8 +119,10 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
 
     @Override
     public String toString() {
-        return "MethodCallStringEscape [stringArgumentAndParameters=" + stringArgumentAndParameters
-                + ", returnedVariable=" + formalReturn + ", returnToVariable=" + actualReturn + "]";
+        return "StaticOrSpecialMethodCallString [stringArgumentAndParameters=" + stringArgumentAndParameters
+                + ", formalReturn=" + formalReturn + ", actualReturn=" + actualReturn + ", targetMethod="
+                + targetMethod + ", inside method " + this.getMethod() + "]";
     }
 
 }
+

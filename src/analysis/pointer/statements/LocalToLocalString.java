@@ -57,19 +57,19 @@ public class LocalToLocalString extends StringStatement {
     @Override
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica formalReturnSVR = new StringVariableReplica(context, this.left);
-        StringVariableReplica svr = new StringVariableReplica(context, this.right);
+        StringVariableReplica leftR = new StringVariableReplica(context, this.left);
+        StringVariableReplica rightR = new StringVariableReplica(context, this.right);
 
         GraphDelta newDelta = new GraphDelta(g);
 
-        newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(formalReturnSVR, svr));
+        newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(leftR, rightR));
 
         return newDelta;
     }
 
     @Override
     public String toString() {
-        return "LocalToLocalString [formalReturn=" + left + ", sv=" + right + "]";
+        return "LocalToLocalString [left=" + left + ", right=" + right + "]";
     }
 
 

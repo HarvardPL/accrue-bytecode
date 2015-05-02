@@ -398,7 +398,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             System.err.println("\tPROCESSING: " + sac);
         }
 
-        Logger.push(s.getMethod().toString().contains("main"));
+        Logger.push(s.getMethod().toString().contains("main") || s.getMethod().toString().contains("valueOf"));
         GraphDelta changed = s.process(c, this.haf, g, delta, registrar, sac);
         Logger.pop();
 
@@ -445,11 +445,17 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         for (StringSolutionVariable v : changes.getStringConstraintDelta().getNewlyActivated()) {
             reprocess.addAll(stringDependencies.getWriteTo(v));
         }
+        for (StmtAndContext depSaC : reprocess) {
+            // Need to add it with a null GraphDelta, since it (may be) the first time
+            // the statement is being processed.
+            queue.add(new OrderedPair<>(depSaC, (GraphDelta) null));
+        }
+        Set<StmtAndContext> moreReprocess = new LinkedHashSet<>();
         for (StringSolutionVariable v : changes.getStringConstraintDelta().getUpdated()) {
-            reprocess.addAll(stringDependencies.getReadFrom(v));
+            moreReprocess.addAll(stringDependencies.getReadFrom(v));
         }
         // now process them...
-        for (StmtAndContext depSaC : reprocess) {
+        for (StmtAndContext depSaC : moreReprocess) {
             queue.add(new OrderedPair<>(depSaC, changes));
         }
     }

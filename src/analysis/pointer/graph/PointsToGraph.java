@@ -1412,7 +1412,7 @@ public final class PointsToGraph implements PointsToIterable {
         return new GraphDelta(this, this.sc.activate(x));
     }
 
-    public boolean stringSolutionVariableReplicaIsActive(StringVariableReplica x) {
+    public boolean stringSolutionVariableReplicaIsActive(StringSolutionVariable x) {
         return this.sc.isActive(x);
     }
 

@@ -47,14 +47,18 @@ public abstract class MethodCallString extends StringStatement {
         GraphDelta newDelta = new GraphDelta(g);
 
         for (OrderedPair<StringVariableReplica, StringVariableReplica> pair : stringArgumentAndParameterSVRs) {
-            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(pair.snd(), pair.fst()));
+            if (g.stringSolutionVariableReplicaIsActive(pair.snd())) {
+                newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(pair.snd(), pair.fst()));
+            }
         }
 
         assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
         if (actualReturn != null) {
             StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
             StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
-            newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(actualReturnSVR, formalReturnSVR));
+            if (g.stringSolutionVariableReplicaIsActive(actualReturnSVR)) {
+                newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(actualReturnSVR, formalReturnSVR));
+            }
         }
 
         return newDelta;

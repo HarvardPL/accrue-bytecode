@@ -44,15 +44,16 @@ public class StringMethodCall extends StringStatement {
      */
     private final List<StringVariable> arguments;
     private enum MethodEnum {
-        concatM, toStringM
+        sbAppendM, toStringM
     }
 
     private static MethodEnum imethodToMethodEnum(IMethod m) {
         if (m.equals(StringAndReflectiveUtil.stringBuilderAppendStringBuilderIMethod)
                 || m.equals(StringAndReflectiveUtil.stringBuilderAppendStringIMethod)) {
-            return MethodEnum.concatM;
+            return MethodEnum.sbAppendM;
         }
-        else if (m.equals(StringAndReflectiveUtil.stringBuilderToStringIMethod)) {
+        else if (m.equals(StringAndReflectiveUtil.stringToStringIMethod)
+                || m.equals(StringAndReflectiveUtil.stringBuilderToStringIMethod)) {
             return MethodEnum.toStringM;
         }
         else {
@@ -77,13 +78,14 @@ public class StringMethodCall extends StringStatement {
         boolean writersAreActive = false;
 
         switch (this.invokedMethod) {
-        case concatM: {
+        case sbAppendM: {
             // the first argument is a copy of the "this" argument
             assert this.arguments.size() == 2 : this.arguments.size();
 
-            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
-                                                                                                  this.receiverDef));
+            //            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+            //                                                                                                  this.receiverDef));
 
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.result));
             break;
         }
         case toStringM: {
@@ -105,15 +107,16 @@ public class StringMethodCall extends StringStatement {
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
         StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
-        List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
-        for (StringVariable argument : this.arguments) {
-            argumentSVRs.add(new StringVariableReplica(context, argument));
-        }
 
         switch (this.invokedMethod) {
-        case concatM: {
+        case sbAppendM: {
             // the first argument is a copy of the "this" argument
             assert this.arguments.size() == 2 : this.arguments.size();
+
+            List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
+            for (StringVariable argument : this.arguments) {
+                argumentSVRs.add(new StringVariableReplica(context, argument));
+            }
 
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
             g.recordStringStatementUseDependency(argumentSVRs.get(1), originator);
@@ -136,19 +139,23 @@ public class StringMethodCall extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
-        StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
 
         switch (this.invokedMethod) {
-        case concatM: {
+        case sbAppendM: {
             // the first argument is a copy of the "this" argument
             assert this.arguments.size() == 2 : this.arguments.size();
 
-            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
+            //            StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
+            StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+
+            //            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
+            g.recordStringStatementDefineDependency(resultSVR, originator);
 
             break;
         }
         case toStringM: {
+            StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+
             g.recordStringStatementDefineDependency(resultSVR, originator);
 
             break;
@@ -172,7 +179,7 @@ public class StringMethodCall extends StringStatement {
         GraphDelta changes = new GraphDelta(g);
 
         switch (this.invokedMethod) {
-        case concatM: {
+        case sbAppendM: {
             // the first argument is a copy of the "this" argument
             assert this.arguments.size() == 2 : this.arguments.size();
 
@@ -206,7 +213,7 @@ public class StringMethodCall extends StringStatement {
         }
 
         switch (this.invokedMethod) {
-        case concatM: {
+        case sbAppendM: {
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
@@ -214,8 +221,16 @@ public class StringMethodCall extends StringStatement {
             AString argumentAString = g.getAStringFor(argumentSVRs.get(1));
 
             AString concated = receiverAString.concat(argumentAString);
-
-            return g.stringSolutionVariableReplicaJoinAt(receiverDefSVR, concated);
+            //            GraphDelta d = null;
+            //            if (g.stringSolutionVariableReplicaIsActive(receiverDefSVR)) {
+            //                d = g.stringSolutionVariableReplicaJoinAt(receiverDefSVR, concated);
+            //            }
+            //            if (g.stringSolutionVariableReplicaIsActive(resultSVR)) {
+            //                GraphDelta e = g.stringSolutionVariableReplicaJoinAt(resultSVR, concated);
+            //                d = d == null ? e : d.combine(e);
+            //            }
+            //            return d;
+            return g.stringSolutionVariableReplicaJoinAt(resultSVR, concated);
         }
         case toStringM: {
             return g.stringSolutionVariableReplicaUpperBounds(resultSVR, receiverUseSVR);

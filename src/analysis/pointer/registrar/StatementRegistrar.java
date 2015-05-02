@@ -234,16 +234,16 @@ public class StatementRegistrar {
             TypeRepository types = new TypeRepository(ir);
             PrettyPrinter pp = new PrettyPrinter(ir);
 
-            debugPrint(m, ">>>>>>> Analyzing : " + m.getName());
-            debugPrint(m, "+++++++\n");
-            for (SSAInstruction instruction : ir.getInstructions()) {
-                debugPrint(m, "  " + instruction);
-            }
-            debugPrint(m, "\n-------");
-
+            //            debugPrint(m, ">>>>>>> Analyzing : " + m.getName());
+            //            debugPrint(m, "+++++++\n");
+            //            for (SSAInstruction instruction : ir.getInstructions()) {
+            //                debugPrint(m, "  " + instruction);
+            //            }
+            //            debugPrint(m, "\n-------");
+            //
             FlowSensitiveStringVariableFactory stringVariableFactory = getOrCreateStringVariableFactory(m);
 
-            debugPrint(m, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+            //            debugPrint(m, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
             // Add edges from formal summary nodes to the local variables representing the method parameters
             this.registerFormalAssignments(ir, this.rvFactory, stringVariableFactory, types, pp);
 
@@ -261,7 +261,7 @@ public class StatementRegistrar {
                     handleInstruction(ins, ir, bb, types, stringVariableFactory, pp);
                 }
             }
-            debugPrint(m, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+            //            debugPrint(m, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 
             // now try to remove duplicates
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
@@ -605,7 +605,7 @@ public class StatementRegistrar {
         if (StringAndReflectiveUtil.isStringLikeType(valueType)) {
             StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
             StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
-            this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod()));
+            this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod(), i));
         }
     }
 
@@ -739,6 +739,12 @@ public class StatementRegistrar {
                                                                     svresult,
                                                                     svarguments));
             }
+            else if (StringAndReflectiveUtil.isValueOf(i.getDeclaredTarget())
+                    && StringAndReflectiveUtil.isStringLikeType(types.getType(i.getUse(0)))) {
+                StringVariable left = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+                StringVariable right = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(0));
+                this.addStringStatement(stmtFactory.localToLocalString(left, right, ir.getMethod(), i));
+            }
             else {
                 this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
             }
@@ -760,10 +766,17 @@ public class StatementRegistrar {
                                                       actuals,
                                                       exception,
                                                       calleeSummary));
-            if (StringAndReflectiveUtil.isStringInitMethod(i.getDeclaredTarget())) {
+            IMethod im = StringAndReflectiveUtil.methodReferenceToIMethod(i.getDeclaredTarget());
+            if (StringAndReflectiveUtil.isStringInit0Method(im)) {
                 StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
 
-                this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
+                this.addStringStatement(stmtFactory.stringInit0(i.getCallSite(), ir.getMethod(), svreceiverDef));
+            }
+            else if (StringAndReflectiveUtil.isStringInit1Method(im)) {
+                StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
+                StringVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(1));
+
+                this.addStringStatement(stmtFactory.localToLocalString(svreceiverDef, argument, ir.getMethod(), i));
             }
             else {
                 this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
@@ -898,7 +911,8 @@ public class StatementRegistrar {
                                                                             caller,
                                                                             stringArgumentAndParameters,
                                                                             formalReturn,
-                                                                            actualReturn));
+                                                                            actualReturn,
+                                                                            resolvedCallee));
     }
 
     /**

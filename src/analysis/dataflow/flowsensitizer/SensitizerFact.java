@@ -1,16 +1,13 @@
 package analysis.dataflow.flowsensitizer;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import util.OrderedPair;
 
-public class SensitizerFact {
+public class SensitizerFact implements LatticeJoin<SensitizerFact> {
     private final Map<Integer, Set<Integer>> m;
     private final Set<Integer> escaped;
 
@@ -23,31 +20,32 @@ public class SensitizerFact {
         this.escaped = escaped;
     }
 
-    public SensitizerFact addToSetAt(int var, int sensitizer) {
-        Map<Integer, Set<Integer>> m = deepCopyMap(this.m);
-
-        if (m.containsKey(var)) {
-            m.get(var).add(sensitizer);
-        }
-        else {
-            Set<Integer> s = new HashSet<>();
-            s.add(sensitizer);
-            m.put(var, s);
-        }
-
+    private SensitizerFact updateM(Map<Integer, Set<Integer>> m) {
         return new SensitizerFact(m, this.escaped);
+    }
+
+    private SensitizerFact updateEscaped(Set<Integer> escaped) {
+        return new SensitizerFact(this.m, escaped);
+    }
+
+    public SensitizerFact addToSetAt(int var, int sensitizer) {
+        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
+
+        DataFlowUtilities.putInSetMap(m, var, sensitizer);
+
+        return updateM(m);
     }
 
     public SensitizerFact replaceSetAt(int var, Set<Integer> s) {
-        Map<Integer, Set<Integer>> m = deepCopyMap(this.m);
+        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
 
         m.put(var, s);
 
-        return new SensitizerFact(m, this.escaped);
+        return updateM(m);
     }
 
     public SensitizerFact replaceSetsAt(Set<OrderedPair<Integer, Set<Integer>>> updates) {
-        Map<Integer, Set<Integer>> m = deepCopyMap(this.m);
+        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
 
         for (OrderedPair<Integer, Set<Integer>> update : updates) {
             Integer key = update.fst();
@@ -55,73 +53,32 @@ public class SensitizerFact {
             m.put(key, s);
         }
 
-        return new SensitizerFact(m, this.escaped);
+        return updateM(m);
     }
 
     public SensitizerFact addEscapee(int var) {
         Set<Integer> escaped = new HashSet<>(this.escaped);
         escaped.add(var);
-        return new SensitizerFact(m, escaped);
+        return updateEscaped(escaped);
     }
 
     public boolean isEscaped(int var) {
         return escaped.contains(var);
     }
 
+    @Override
     public SensitizerFact join(SensitizerFact that) {
-        Map<Integer, Set<Integer>> m = deepCopyMap(this.m);
+        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
+        Set<Integer> escaped = new HashSet<>(this.escaped);
 
-        for (Entry<Integer, Set<Integer>> kv : that.m.entrySet()) {
-            Integer var = kv.getKey();
-            Set<Integer> s = kv.getValue();
+        DataFlowUtilities.combineMaps(m, that.m);
+        escaped.addAll(that.escaped);
 
-            if (m.containsKey(var)) {
-                m.get(var).addAll(s);
-            }
-            else {
-                m.put(var, s);
-            }
-        }
-
-        return new SensitizerFact(m, this.escaped);
+        return new SensitizerFact(m, escaped);
     }
 
     public Map<Integer, Set<Integer>> getMap() {
         return this.m;
-    }
-
-    private static Map<Integer, Set<Integer>> deepCopyMap(Map<Integer, Set<Integer>> m) {
-        Map<Integer, Set<Integer>> m2 = new HashMap<>();
-
-        for (Entry<Integer, Set<Integer>> kv : m.entrySet()) {
-            Integer var = kv.getKey();
-            Set<Integer> s = kv.getValue();
-
-            Set<Integer> s2 = new HashSet<>(s);
-            m2.put(var, s2);
-        }
-
-        return m2;
-    }
-
-    public static SensitizerFact joinCollection(Collection<SensitizerFact> c) {
-        if (c.size() == 0) {
-            return SensitizerFact.makeBottom();
-        }
-        else if (c.size() == 1) {
-            return c.iterator().next();
-        }
-        else {
-            Iterator<SensitizerFact> it = c.iterator();
-            SensitizerFact f = it.next();
-
-            while (it.hasNext()) {
-                // XXX: this could be made more efficient
-                f = f.join(it.next());
-            }
-
-            return f;
-        }
     }
 
     /*

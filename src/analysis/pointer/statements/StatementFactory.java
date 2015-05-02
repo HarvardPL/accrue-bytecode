@@ -574,16 +574,16 @@ public class StatementFactory {
         return s;
     }
 
-    public StringStatement localToLocalString(StringVariable formalReturn, StringVariable sv, IMethod method,
-                                              SSAReturnInstruction i) {
-        assert formalReturn != null;
-        assert sv != null;
+    public StringStatement localToLocalString(StringVariable left, StringVariable right, IMethod method,
+                                              SSAInstruction i) {
+        assert left != null;
+        assert right != null;
         assert method != null;
         assert i != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(formalReturn, sv, method, i));
+        assert stringStatementNeverCreatedBefore(new StatementKey(left, right, method, i));
 
-        return new LocalToLocalString(formalReturn, sv, method);
+        return new LocalToLocalString(left, right, method);
     }
 
     public StringStatement fieldToLocalString(StringVariable svv, ReferenceVariable o, FieldReference f, IMethod method) {
@@ -661,14 +661,15 @@ public class StatementFactory {
     }
 
     public StringStatement localToFieldString(StringVariable svvDef, StringVariable svvUse, ReferenceVariable o,
-                                              FieldReference f, IMethod method) {
+                                              FieldReference f, IMethod method, SSAInstruction i) {
         assert svvDef != null;
         assert svvUse != null;
         assert o != null;
         assert f != null;
         assert method != null;
+        assert i != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(svvDef, svvUse, o, f, method));
+        assert stringStatementNeverCreatedBefore(new StatementKey(svvDef, svvUse, o, f, method, i));
 
         return new LocalToFieldStringStatement(svvDef, svvUse, o, f, method);
     }
@@ -685,7 +686,7 @@ public class StatementFactory {
         return new LocalToStaticFieldStringStatement(svf, svvuse, svvdef, method);
     }
 
-    public StringStatement stringInit(CallSiteReference callSite, IMethod method, StringVariable sv) {
+    public StringStatement stringInit0(CallSiteReference callSite, IMethod method, StringVariable sv) {
         assert callSite != null;
         assert method != null;
         assert sv != null;
@@ -728,7 +729,8 @@ public class StatementFactory {
     public StringStatement staticOrSpecialMethodCallString(SSAInstruction i,
                                                            IMethod method,
                                                            List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
-                                                           StringVariable formalReturn, StringVariable actualReturn) {
+                                                           StringVariable formalReturn, StringVariable actualReturn,
+                                                           IMethod targetMethod) {
         assert i != null;
         /* NB: both returnedVariable and returnToVariable could be null. Nullness */
         /* indicates the return value is either ignored or not String-like */
@@ -745,7 +747,11 @@ public class StatementFactory {
                                                                   formalReturn,
                                                                   actualReturn));
 
-        return new StaticOrSpecialMethodCallString(method, stringArgumentAndParameters, formalReturn, actualReturn);
+        return new StaticOrSpecialMethodCallString(method,
+                                                   stringArgumentAndParameters,
+                                                   formalReturn,
+                                                   actualReturn,
+                                                   targetMethod);
     }
 
     public StringStatement virtualMethodCallString(IMethod method,
@@ -978,5 +984,4 @@ public class StatementFactory {
                     + key5 + ", key6=" + key6 + ", key7=" + key7 + "]";
         }
     }
-
 }

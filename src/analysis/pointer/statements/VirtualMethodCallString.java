@@ -140,9 +140,9 @@ public class VirtualMethodCallString extends MethodCallString {
 
             assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
             if (actualReturn != null) {
-                StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
+                StringVariableReplica formalReturnSVR = new StringVariableReplica(context, summary.getRet());
 
-                changes.combine(g.activateStringSolutionVariable(actualReturnSVR));
+                changes.combine(g.activateStringSolutionVariable(formalReturnSVR));
             }
         }
 
@@ -200,9 +200,9 @@ public class VirtualMethodCallString extends MethodCallString {
 
     @Override
     public String toString() {
-        return "VirtualMethodCallStringEscape [stringArgumentAndParamNums=" + stringArgumentAndParamNums
-                + ", returnToVariable=" + actualReturn + ", declaredTarget=" + declaredTarget + ", receiver="
-                + receiver + "]";
+        return "VirtualMethodCallString [stringArgumentAndParamNums=" + stringArgumentAndParamNums + ", actualReturn="
+                + actualReturn + ", declaredTarget=" + declaredTarget + ", receiver=" + receiver + ", inside method "
+                + this.getMethod() + "]";
     }
 
 }

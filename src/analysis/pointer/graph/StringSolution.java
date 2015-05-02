@@ -131,7 +131,8 @@ public class StringSolution {
      * @return
      */
     public StringSolutionDelta upperBounds(StringSolutionVariable svr1, StringSolutionVariable svr2) {
-        assert this.isActive(svr1) && this.isActive(svr2);
+        assert this.isActive(svr1) && this.isActive(svr2) : "svr1 : " + svr1 + " active? " + this.isActive(svr1)
+                + "; svr2 : " + svr2 + " active? " + this.isActive(svr2);
         Set<StringSolutionVariable> ub = this.upperBounds.get(svr2);
         if (ub == null) {
             ub = AnalysisUtil.createConcurrentSet();
