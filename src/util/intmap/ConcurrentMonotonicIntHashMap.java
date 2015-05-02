@@ -64,23 +64,23 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
         }
 
 
-        public boolean containsKey(int i) {
+        public boolean containsKey(int i, int hash) {
             Entry<V>[] b = this.buckets;
-            AtomicReference<V> ref = getRef(i, b);
+            AtomicReference<V> ref = getRef(i, hash, b);
             return ref != null && ref.get() != null;
         }
 
-        public V get(int i) {
+        public V get(int i, int hash) {
             Entry<V>[] b = this.buckets;
-            AtomicReference<V> ref = getRef(i, b);
+            AtomicReference<V> ref = getRef(i, hash, b);
             if (ref != null) {
                 return ref.get();
             }
             return null;
         }
 
-        private static <V> AtomicReference<V> getRef(int i, Entry<V>[] b) {
-            Entry<V> e = getBucketHead(b, bucketForKey(i, b.length));
+        private static <V> AtomicReference<V> getRef(int i, int hash, Entry<V>[] b) {
+            Entry<V> e = getBucketHead(b, bucketForHash(hash, b.length));
             while (e != null) {
                 if (e.key == i) {
                     return e.valueRef;
@@ -96,25 +96,18 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
          * @param i
          * @return
          */
-        private static int bucketForKey(int i, int numBuckets) {
-            return (numBuckets - 1) & bucketHash(i);
+        private static int bucketForHash(int hash, int numBuckets) {
+            return (numBuckets - 1) & hash;
         }
 
-        private static int bucketHash(int i) {
-            int h = i;
-            h ^= (h >>> 20) ^ (h >>> 12);
-            h ^= (h >>> 7) ^ (h >>> 4);
-            return h;
-        }
-
-        public V put(int i, V val) {
+        public V put(int i, int hash, V val) {
             assert val != null;
-            return put(i, val, false);
+            return put(i, hash, val, false);
         }
 
-        public V putIfAbsent(int key, V value) {
+        public V putIfAbsent(int key, int hash, V value) {
             assert value != null;
-            return put(key, value, true);
+            return put(key, hash, value, true);
         }
 
         /**
@@ -128,12 +121,12 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
          * @param oldValue
          * @return
          */
-        private V put(int key, V val, boolean onlyIfAbsent) {
+        private V put(int key, int hash, V val, boolean onlyIfAbsent) {
             outer: while (true) {
                 Entry<V>[] b = this.buckets;
 
                 // check if we have an entry for i
-                int ind = bucketForKey(key, b.length);
+                int ind = bucketForHash(hash, b.length);
                 Entry<V> e = getBucketHead(b, ind);
                 Entry<V> firstEntry = e;
                 while (e != null) {
@@ -173,7 +166,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
                 // Check first to see if we want to resize
                 if (firstEntry != null && firstEntry.length >= THRESHOLD_BUCKET_LENGTH) {
                     // yes, we want to resize
-                    if (resize(b, key, val)) {
+                    if (resize(b, key, hash, val)) {
                         // we successfully resized and added the new entry
                         return null;
                     }
@@ -189,7 +182,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
                         // doh! the buckets changed under us, just try again.
                         continue outer;
                     }
-                    Entry<V> newE = new Entry<V>(key, new AtomicReference<>(val), firstEntry);
+                    Entry<V> newE = new Entry<>(key, new AtomicReference<>(val), firstEntry);
                     if (compareAndSwapBucketHead(b, ind, firstEntry, newE)) {
                         // we swapped it! We are done.
                         // Return, which will unlock the read lock.
@@ -204,8 +197,8 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
             }
         }
 
-        public V remove(int key) {
-            AtomicReference<V> ref = getRef(key, this.buckets);
+        public V remove(int key, int hash) {
+            AtomicReference<V> ref = getRef(key, hash, this.buckets);
             if (ref == null) {
                 return null;
             }
@@ -216,9 +209,9 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
             return prev;
         }
 
-        public boolean remove(int key, V value) {
+        public boolean remove(int key, int hash, V value) {
             assert value != null;
-            AtomicReference<V> ref = getRef(key, this.buckets);
+            AtomicReference<V> ref = getRef(key, hash, this.buckets);
             if (ref == null) {
                 return false;
             }
@@ -229,18 +222,18 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
             return false;
         }
 
-        public boolean replace(int key, V oldValue, V newValue) {
+        public boolean replace(int key, int hash, V oldValue, V newValue) {
             assert newValue != null;
-            AtomicReference<V> ref = getRef(key, this.buckets);
+            AtomicReference<V> ref = getRef(key, hash, this.buckets);
             if (ref == null) {
                 return false;
             }
             return ref.compareAndSet(oldValue, newValue);
         }
 
-        public V replace(int key, V value) {
+        public V replace(int key, int hash, V value) {
             assert value != null;
-            AtomicReference<V> ref = getRef(key, this.buckets);
+            AtomicReference<V> ref = getRef(key, hash, this.buckets);
             if (ref == null) {
                 return null;
             }
@@ -250,7 +243,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
         /**
          * Resize the buckets, and then add the key, value pair.
          */
-        private boolean resize(Entry<V>[] b, int key, V value) {
+        private boolean resize(Entry<V>[] b, int key, int hash, V value) {
             if (!this.resizeInProgress.compareAndSet(false, true)) {
                 // someone else is resizing already
                 return false;
@@ -270,14 +263,14 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
                     while (e != null) {
                         int ekey = e.key;
                         AtomicReference<V> evalueRef = e.valueRef;
-                        int ind = bucketForKey(ekey, newBucketLength);
+                        int ind = bucketForHash(hash(ekey), newBucketLength);
                         newBuckets[ind] = new Entry<>(ekey, evalueRef, newBuckets[ind]);
                         e = e.next;
                     }
                 }
 
                 // now add the new entry
-                int ind = bucketForKey(key, newBucketLength);
+                int ind = bucketForHash(hash, newBucketLength);
                 newBuckets[ind] = new Entry<>(key, new AtomicReference<>(value), newBuckets[ind]);
 
                 // now update the buckets
@@ -425,6 +418,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
     private final int segmentInitialCapacity;
 
     private final int segmentMask;
+    private final int segmentShift;
 
     public ConcurrentMonotonicIntHashMap() {
         this(INITIAL_BUCKET_SIZE, DEFAULT_CONCURRENCY_LEVEL);
@@ -435,15 +429,24 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
     }
 
     private ConcurrentMonotonicIntHashMap(int initialCapacity, int concurrencyLevel) {
-        // Find power-of-two sizes best matching arguments
+        // Find the power-of-two that is at least as big as concurrencyLevel and initialCapacity
+        int sshift = 0;
         int ssize = 1;
-        while (ssize <= concurrencyLevel) {
+        while (ssize < concurrencyLevel) {
+            ++sshift;
             ssize <<= 1;
         }
 
         this.segments = new Segment[ssize];
-        this.segmentInitialCapacity = initialCapacity;
         this.segmentMask = ssize - 1;
+        this.segmentShift = 32 - sshift;
+
+        int initCap = 1;
+        while (initCap < initialCapacity) {
+            initCap <<= 1;
+        }
+
+        this.segmentInitialCapacity = initCap;
     }
 
 
@@ -472,26 +475,29 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
 
     @Override
     public boolean containsKey(int i) {
-        Segment<V> seg = segmentForKey(i);
+        int hash = hash(i);
+        Segment<V> seg = segmentAt(segmentForHash(hash));
         if (seg == null) {
             return false;
         }
-        return seg.containsKey(i);
+        return seg.containsKey(i, hash);
     }
 
     @Override
     public V get(int i) {
-        Segment<V> seg = segmentForKey(i);
+        int hash = hash(i);
+        Segment<V> seg = segmentAt(segmentForHash(hash));
         if (seg == null) {
             return null;
         }
-        return seg.get(i);
+        return seg.get(i, hash);
     }
 
     @Override
     public V put(int i, V val) {
-        Segment<V> seg = ensureSegmentForKey(i);
-        V res = seg.put(i, val);
+        int hash = hash(i);
+        Segment<V> seg = ensureSegmentAt(segmentForHash(hash));
+        V res = seg.put(i, hash, val);
         checkMax(i);
         return res;
     }
@@ -515,17 +521,19 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
 
     @Override
     public V remove(int key) {
-        Segment<V> seg = segmentForKey(key);
+        int hash = hash(key);
+        Segment<V> seg = segmentAt(segmentForHash(hash));
         if (seg == null) {
             return null;
         }
-        return seg.remove(key);
+        return seg.remove(key, hash);
     }
 
     @Override
     public V putIfAbsent(int key, V value) {
-        Segment<V> seg = ensureSegmentForKey(key);
-        V res = seg.putIfAbsent(key, value);
+        int hash = hash(key);
+        Segment<V> seg = ensureSegmentAt(segmentForHash(hash));
+        V res = seg.putIfAbsent(key, hash, value);
         if (res == null) {
             checkMax(key);
         }
@@ -534,29 +542,32 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
 
     @Override
     public boolean remove(int key, V value) {
-        Segment<V> seg = segmentForKey(key);
+        int hash = hash(key);
+        Segment<V> seg = segmentAt(segmentForHash(hash));
         if (seg == null) {
             return false;
         }
-        return seg.remove(key, value);
+        return seg.remove(key, hash, value);
     }
 
     @Override
     public boolean replace(int key, V oldValue, V newValue) {
-        Segment<V> seg = segmentForKey(key);
+        int hash = hash(key);
+        Segment<V> seg = segmentAt(segmentForHash(hash));
         if (seg == null) {
             return false;
         }
-        return seg.replace(key, oldValue, newValue);
+        return seg.replace(key, hash, oldValue, newValue);
     }
 
     @Override
     public V replace(int key, V value) {
-        Segment<V> seg = segmentForKey(key);
+        int hash = hash(key);
+        Segment<V> seg = segmentAt(segmentForHash(hash));
         if (seg == null) {
             return null;
         }
-        return seg.replace(key, value);
+        return seg.replace(key, hash, value);
     }
 
     private class KeyIterator implements IntIterator {
@@ -611,28 +622,26 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
         SEGSHIFT = 31 - Integer.numberOfLeadingZeros(ss);
     }
 
-    private Segment<V> segmentForKey(int key) {
-        int hash = segmentHash(key);
+    /**
+     * Use a hash to figure out the segment to use for a key.
+     *
+     * @param key
+     * @return
+     */
+    private static int hash(int key) {
+        // A single word Jenkins hash, taken from https://en.wikipedia.org/wiki/Jenkins_hash_function
+        int hash = key;
+        hash += (hash << 10);
+        hash ^= (hash >> 6);
+        hash += (hash << 3);
+        hash ^= (hash >> 11);
+        hash += (hash << 15);
 
-        return segmentAt(hash & segmentMask);
+        return hash;
     }
 
-    private Segment<V> ensureSegmentForKey(int key) {
-        int hash = segmentHash(key);
-
-        return ensureSegmentAt(hash & segmentMask);
-    }
-
-    private static int segmentHash(int key) {
-        int h = key;
-        // Spread bits to regularize both segment and index locations,
-        // using variant of single-word Wang/Jenkins hash.
-        h += (h << 15) ^ 0xffffcd7d;
-        h ^= (h >>> 10);
-        h += (h << 3);
-        h ^= (h >>> 6);
-        h += (h << 2) + (h << 14);
-        return h ^ (h >>> 16);
+    private int segmentForHash(int hash) {
+        return (hash >>> segmentShift) & segmentMask;
     }
 
     private Segment<V> segmentAt(int i) {

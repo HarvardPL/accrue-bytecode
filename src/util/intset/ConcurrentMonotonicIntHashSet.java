@@ -66,9 +66,9 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         }
 
 
-        public boolean contains(int i) {
+        public boolean contains(int i, int hash) {
             Entry[] b = this.buckets;
-            Entry e = getBucketHead(b, bucketForKey(i, b.length));
+            Entry e = getBucketHead(b, bucketForHash(hash, b.length));
             while (e != null) {
                 if (e.key == i) {
                     return true;
@@ -84,23 +84,16 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
          * @param i
          * @return
          */
-        private static int bucketForKey(int i, int numBuckets) {
-            return (numBuckets - 1) & bucketHash(i);
+        private static int bucketForHash(int hash, int numBuckets) {
+            return (numBuckets - 1) & hash;
         }
 
-        private static int bucketHash(int i) {
-            int h = i;
-            h ^= (h >>> 20) ^ (h >>> 12);
-            h ^= (h >>> 7) ^ (h >>> 4);
-            return h;
-        }
-
-        public boolean add(int key) {
+        public boolean add(int key, int hash) {
             outer: while (true) {
                 Entry[] b = this.buckets;
 
                 // check if we have an entry for i
-                int ind = bucketForKey(key, b.length);
+                int ind = bucketForHash(hash, b.length);
                 Entry e = getBucketHead(b, ind);
                 Entry firstEntry = e;
                 while (e != null) {
@@ -117,7 +110,7 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
                 // Check first to see if we want to resize
                 if (firstEntry != null && firstEntry.length >= THRESHOLD_BUCKET_LENGTH) {
                     // yes, we want to resize
-                    if (resize(b, key)) {
+                    if (resize(b, key, hash)) {
                         // we successfully resized and added the new entry
                         return true;
                     }
@@ -152,7 +145,7 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         /**
          * Resize the buckets, and then add the key.
          */
-        private boolean resize(Entry[] b, int key) {
+        private boolean resize(Entry[] b, int key, int hash) {
             if (!this.resizeInProgress.compareAndSet(false, true)) {
                 // someone else is resizing already
                 return false;
@@ -171,14 +164,14 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
                     Entry e = getBucketHead(existingBuckets, i);
                     while (e != null) {
                         int ekey = e.key;
-                        int ind = bucketForKey(ekey, newBucketLength);
+                        int ind = bucketForHash(hash(ekey), newBucketLength);
                         newBuckets[ind] = new Entry(ekey, newBuckets[ind]);
                         e = e.next;
                     }
                 }
 
                 // now add the new entry
-                int ind = bucketForKey(key, newBucketLength);
+                int ind = bucketForHash(hash, newBucketLength);
                 newBuckets[ind] = new Entry(key, newBuckets[ind]);
 
                 // now update the buckets
@@ -317,6 +310,7 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
     private final int segmentInitialCapacity;
 
     private final int segmentMask;
+    private final int segmentShift;
 
     public ConcurrentMonotonicIntHashSet() {
         this(INITIAL_BUCKET_SIZE, DEFAULT_CONCURRENCY_LEVEL);
@@ -327,15 +321,25 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
     }
 
     private ConcurrentMonotonicIntHashSet(int initialCapacity, int concurrencyLevel) {
-        // Find power-of-two sizes best matching arguments
+        // Find the power-of-two that is at least as big as concurrencyLevel and initialCapacity
+        int sshift = 0;
         int ssize = 1;
-        while (ssize <= concurrencyLevel) {
+        while (ssize < concurrencyLevel) {
+            ++sshift;
             ssize <<= 1;
         }
 
         this.segments = new Segment[ssize];
-        this.segmentInitialCapacity = initialCapacity;
         this.segmentMask = ssize - 1;
+        this.segmentShift = 32 - sshift;
+
+        int initCap = 1;
+        while (initCap < initialCapacity) {
+            initCap <<= 1;
+        }
+
+        this.segmentInitialCapacity = initCap;
+
     }
 
 
@@ -363,17 +367,24 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
 
     @Override
     public boolean contains(int i) {
-        Segment seg = segmentForKey(i);
+        int hash = hash(i);
+        Segment seg = segmentAt(segmentForHash(hash));
         if (seg == null) {
             return false;
         }
-        return seg.contains(i);
+        return seg.contains(i, hash);
     }
 
     @Override
     public boolean add(int i) {
-        Segment seg = ensureSegmentForKey(i);
-        return seg.add(i);
+        int hash = hash(i);
+        int segIndex = segmentForHash(hash);
+        Segment seg = ensureSegmentAt(segIndex);
+        boolean result = seg.add(i, hash);
+        if (result) {
+            checkMax(i);
+        }
+        return result;
     }
 
     @Override
@@ -445,30 +456,28 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         SEGSHIFT = 31 - Integer.numberOfLeadingZeros(ss);
     }
 
-    private Segment segmentForKey(int key) {
-        int hash = segmentHash(key);
 
-        return segmentAt(hash & segmentMask);
+    /**
+     * Use a hash to figure out the segment to use for a key.
+     *
+     * @param key
+     * @return
+     */
+    private static int hash(int key) {
+        // A single word Jenkins hash, taken from https://en.wikipedia.org/wiki/Jenkins_hash_function
+        int hash = key;
+        hash += (hash << 10);
+        hash ^= (hash >> 6);
+        hash += (hash << 3);
+        hash ^= (hash >> 11);
+        hash += (hash << 15);
+
+        return hash;
     }
 
-    private Segment ensureSegmentForKey(int key) {
-        int hash = segmentHash(key);
-
-        return ensureSegmentAt(hash & segmentMask);
+    private int segmentForHash(int hash) {
+        return (hash >>> segmentShift) & segmentMask;
     }
-
-    private static int segmentHash(int key) {
-        int h = key;
-        // Spread bits to regularize both segment and index locations,
-        // using variant of single-word Wang/Jenkins hash.
-        h += (h << 15) ^ 0xffffcd7d;
-        h ^= (h >>> 10);
-        h += (h << 3);
-        h ^= (h >>> 6);
-        h += (h << 2) + (h << 14);
-        return h ^ (h >>> 16);
-    }
-
     private Segment segmentAt(int i) {
         return (Segment) UNSAFE.getObjectVolatile(this.segments, ((long) i << SEGSHIFT) + SEGBASE);
     }
@@ -528,8 +537,8 @@ public class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         if (count != testSize) {
             throw new RuntimeException("count is " + count);
         }
-        if (m.max() != testSize) {
-            throw new RuntimeException("max is " + m.max());
+        if (m.max() != testSize - 1) {
+            throw new RuntimeException("max is " + m.max() + " test size is " + testSize);
         }
         System.out.println("OK: " + m.max());
     }
