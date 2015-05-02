@@ -12,10 +12,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import main.AccrueAnalysisMain;
-import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
+import util.intmap.ConcurrentMonotonicIntHashMap;
 import util.intmap.IntMap;
-import util.intset.ConcurrentIntHashSet;
+import util.intset.ConcurrentMonotonicIntHashSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -469,11 +469,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
-        return new ConcurrentIntHashSet(16, 0.75f, AnalysisUtil.numThreads);
+        return new ConcurrentMonotonicIntHashSet(AnalysisUtil.numThreads); //ConcurrentIntHashSet(16, 0.75f, AnalysisUtil.numThreads);
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        return new ConcurrentIntHashMap<>(16, 0.75f, AnalysisUtil.numThreads);
+        return new ConcurrentMonotonicIntHashMap<>(AnalysisUtil.numThreads); //ConcurrentIntHashMap<>(16, 0.75f, AnalysisUtil.numThreads);
     }
 
     /**
