@@ -1,7 +1,7 @@
 # bin/runCompareWala.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt  
 # nohup bin/runCompareWala.sh > wala$(date +"%Y.%m.%d.%H.%M.%S").txt 2> walaerr$(date +"%Y.%m.%d.%H.%M.%S").txt &                                                                                                                                                                           
 
-max=1
+max=10
 
 for BM in \
   antlr bloat chart eclipse fop hsqldb jython luindex lusearch pmd xalan                                                                                                                                                           
