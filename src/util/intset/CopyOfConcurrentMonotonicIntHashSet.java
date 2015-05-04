@@ -17,7 +17,7 @@ import com.ibm.wala.util.intset.MutableIntSet;
  * XXX DOCO TODO
  *
  */
-public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
+public class CopyOfConcurrentMonotonicIntHashSet implements MutableIntSet {
     private static final int INITIAL_BUCKET_SIZE = 16;
     private static final int DEFAULT_CONCURRENCY_LEVEL = 32;
 
@@ -28,26 +28,48 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
 
     private static final class Entry {
         Entry(int key, Entry next) {
-            this.next = next;
             this.key = key;
             this.length = (byte) (next == null ? 1 : next.length + 1);
         }
 
         final int key;
-        final Entry next;
-        final byte length; // length of the list starting with this node.
+        volatile Entry next;
+        volatile byte length; // length of the list starting with this node.
+
+        /**
+         * Unsafe stuff...
+         */
+        static final sun.misc.Unsafe UNSAFE;
+        static final long nextOffset;
+        static {
+            try {
+                Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+                f.setAccessible(true);
+                UNSAFE = (sun.misc.Unsafe) f.get(null);
+                Class k = Entry.class;
+                nextOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("next"));
+            }
+            catch (Exception e) {
+                throw new Error(e);
+            }
+        }
+
+        void setNext(Entry newNext) {
+            UNSAFE.putOrderedObject(this, nextOffset, newNext);
+            this.length = (byte) (1 + (newNext == null ? 0 : newNext.length));
+        }
+
     }
 
-    private static final class Segment {
+    private static class Segment {
         private volatile Entry[] buckets;
-
         /**
          * Is a resize in progress? We treat this like a lock.
          */
         private final AtomicBoolean resizeInProgress = new AtomicBoolean(false);
 
         /**
-         * A read/write lock for the bucket array. Putting a new Entry requires a read lock. Reizing the Segment (i.e.,
+         * A read/write lock for the bucket array. Putting a new Entry requires a read lock. Resizing the Segment (i.e.,
          * replacing the bucket array) requires the write lock.
          */
         private final Lock bucketArrayReadLock;
@@ -61,24 +83,33 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         }
 
 
-        public boolean containsKey(int i, int hash) {
+        public boolean contains(int i, int hash) {
             Entry[] b = this.buckets;
-            Entry e = getEntry(i, hash, b);
-            return e != null;
-        }
-
-        private static Entry getEntry(int i, int hash, Entry[] b) {
             Entry e = getBucketHead(b, bucketForHash(hash, b.length));
             while (e != null) {
                 if (e.key == i) {
-                    return e;
+                    return true;
                 }
-                Entry enext = e.next;
-                assert (enext == null) ? (e.length == 1) : (e.length == enext.length + 1) : "Entry lengths do not agree: "
-                        + e.length + " and the next is " + (enext == null ? "null" : enext.length);
-                e = enext;
+                e = e.next;
             }
-            return null;
+
+            // hmmm, we didn't get it. Try a read lock in case there was a race with resizing...
+            this.bucketArrayReadLock.lock();
+            try {
+                b = this.buckets;
+                e = getBucketHead(b, bucketForHash(hash, b.length));
+                while (e != null) {
+                    if (e.key == i) {
+                        return true;
+                    }
+                    e = e.next;
+                }
+            }
+            finally {
+                this.bucketArrayReadLock.unlock();
+            }
+
+            return false;
         }
 
         /**
@@ -93,38 +124,32 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
 
         public boolean add(int key, int hash) {
             outer: while (true) {
+
+                // check if we have an entry for i
+                if (contains(key, hash)) {
+                    return false;
+                }
+
+                // there wasn't an entry, so we must be putting a non-empty value.
+
+                // We add a new Entry
+                // Check first to see if we want to resize
                 Entry[] b = this.buckets;
+                int ind = bucketForHash(hash, b.length);
+                Entry firstEntry = getBucketHead(b, ind);
+                if (firstEntry != null && firstEntry.length >= THRESHOLD_BUCKET_LENGTH) {
+                    // yes, we want to resize
+                    if (resize(b, key, hash)) {
+                        // we successfully resized and added the new entry
+                        return true;
+                    }
+                    // we decided not to resize, and haven't added the entry. Fall through and do it now.
+                }
 
-                // We need a read lock here, as we will be either modifying an Entry
-                // or adding a new Entry
+                // We want to add an Entry without resizing.
+                // get a read lock
                 this.bucketArrayReadLock.lock();
-                boolean unlockedReadLock = false;
                 try {
-                    // check if we have an entry for i
-                    int ind = bucketForHash(hash, b.length);
-                    Entry e = getBucketHead(b, ind);
-                    Entry firstEntry = e;
-                    while (e != null) {
-                        if (e.key == key) {
-                            // we have an entry!
-                            return false;
-                        }
-                        e = e.next;
-                    }
-
-                    // We add a new Entry
-                    // Check first to see if we want to resize
-                    if (firstEntry != null && firstEntry.length >= THRESHOLD_BUCKET_LENGTH) {
-                        // yes, we want to resize
-                        if (resize(b, key, hash)) {
-                            // we successfully resized and added the new entry
-                            unlockedReadLock = true;
-                            return true;
-                        }
-                        // we decided not to resize, and haven't added the entry. Fall through and do it now.
-                    }
-
-                    // We want to add an Entry without resizing.
                     Entry[] currentBuckets = this.buckets;
                     if (currentBuckets != b) {
                         // doh! the buckets changed under us, just try again.
@@ -140,76 +165,38 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
                     // Release the read lock and try the put again, by continuing at the outer loop.
                 }
                 finally {
-                    if (!unlockedReadLock) {
-                        this.bucketArrayReadLock.unlock();
-                    }
+                    this.bucketArrayReadLock.unlock();
                 }
             }
         }
 
+
         /**
-         * Resize the buckets, and then add the key, value pair.
+         * Resize the buckets, and then add the key.
          */
         private boolean resize(Entry[] b, int key, int hash) {
             if (!this.resizeInProgress.compareAndSet(false, true)) {
                 // someone else is resizing already
                 return false;
             }
-            // we need to upgrade to a write lock, and are currently holding a read lock.
-            this.bucketArrayReadLock.unlock();
             this.bucketArrayWriteLock.lock();
             try {
                 Entry[] existingBuckets = this.buckets;
 
                 if (b != existingBuckets) {
                     // someone already resized it from when we decided we needed to.
-                    // get the read lock back...
-                    this.bucketArrayReadLock.lock();
                     return false;
                 }
                 int newBucketLength = existingBuckets.length * 2;
                 Entry[] newBuckets = new Entry[newBucketLength];
                 for (int i = 0; i < existingBuckets.length; i++) {
-                    Entry bucketHead = getBucketHead(existingBuckets, i);
-
-                    // First find the longest tail of the bucket list that we can reuse, i.e., that map to the same bucket.
-                    // We can do this because the bucket size increases by a factor of 2, and so each old bucket is split into two new buckets,
-                    // and for each new bucket, the entries come from the same old bucket.
-                    // This will reduce the number of Entrys that we need to create.
-                    Entry startOfLastChain = null;
-                    int lastBucket = -1;
-                    {
-                        Entry e = bucketHead;
-                        while (e != null) {
-                            int ind = bucketForHash(hash(e.key), newBucketLength);
-
-                            if (lastBucket < 0) {
-                                lastBucket = ind;
-                                startOfLastChain = e;
-                            }
-                            else if (ind != lastBucket) {
-                                // this is the start of a new chain!
-                                lastBucket = ind;
-                                startOfLastChain = e;
-                            }
-                            else {
-                                // we are still part of the same chain.
-                            }
-                            e = e.next;
-                        }
-                    }
-
-                    // we will reuse startOfLastChain.
-                    if (lastBucket >= 0) {
-                        newBuckets[lastBucket] = startOfLastChain;
-                    }
-                    Entry e = bucketHead;
-
-                    while (e != null && e != startOfLastChain) {
-                        int ekey = e.key;
-                        int ind = bucketForHash(hash(ekey), newBucketLength);
-                        newBuckets[ind] = new Entry(ekey, newBuckets[ind]);
-                        e = e.next;
+                    Entry e = getBucketHead(existingBuckets, i);
+                    while (e != null) {
+                        Entry enext = e.next;
+                        int ind = bucketForHash(hash(e.key), newBucketLength);
+                        e.setNext(newBuckets[ind]);
+                        newBuckets[ind] = e;
+                        e = enext;
                     }
                 }
 
@@ -271,7 +258,7 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
             BUCKETSHIFT = 31 - Integer.numberOfLeadingZeros(bs);
         }
 
-        static Entry getBucketHead(Entry[] b, int i) {
+        static Entry getBucketHead(CopyOfConcurrentMonotonicIntHashSet.Entry[] b, int i) {
             return (Entry) UNSAFE.getObjectVolatile(b, ((long) i << BUCKETSHIFT) + BUCKETBASE);
         }
 
@@ -286,7 +273,7 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         private static class SegmentKeyIterator implements IntIterator {
             final Entry[] bs;
             int currentIndex = -1;
-            Entry currentEntry = null;
+            CopyOfConcurrentMonotonicIntHashSet.Entry currentEntry = null;
             boolean valid = false;
 
             public SegmentKeyIterator(Entry[] buckets) {
@@ -307,13 +294,12 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
 
                 // find the next Entry
                 while (currentIndex < bs.length) {
-                    do {
-                        if (currentEntry != null) {
-                            // we have a valid entry!
-                            valid = true;
-                            return true;
-                        }
-                    } while (currentEntry != null);
+                    if (currentEntry != null) {
+                        // we have a valid entry!
+                        valid = true;
+                        return true;
+                    }
+
                     // here currentEntry is null
                     currentIndex++;
                     if (currentIndex < this.bs.length) {
@@ -351,15 +337,15 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
     private final int segmentMask;
     private final int segmentShift;
 
-    public ConcurrentMonotonicIntHashSet() {
+    public CopyOfConcurrentMonotonicIntHashSet() {
         this(INITIAL_BUCKET_SIZE, DEFAULT_CONCURRENCY_LEVEL);
     }
 
-    public ConcurrentMonotonicIntHashSet(int concurrencyLevel) {
+    public CopyOfConcurrentMonotonicIntHashSet(int concurrencyLevel) {
         this(INITIAL_BUCKET_SIZE, concurrencyLevel);
     }
 
-    private ConcurrentMonotonicIntHashSet(int initialCapacity, int concurrencyLevel) {
+    private CopyOfConcurrentMonotonicIntHashSet(int initialCapacity, int concurrencyLevel) {
         // Find the power-of-two that is at least as big as concurrencyLevel and initialCapacity
         int sshift = 0;
         int ssize = 1;
@@ -378,6 +364,7 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         }
 
         this.segmentInitialCapacity = initCap;
+
     }
 
 
@@ -403,7 +390,6 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         return this.max.get();
     }
 
-
     @Override
     public boolean contains(int i) {
         int hash = hash(i);
@@ -411,18 +397,19 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         if (seg == null) {
             return false;
         }
-        return seg.containsKey(i, hash);
+        return seg.contains(i, hash);
     }
 
     @Override
     public boolean add(int i) {
         int hash = hash(i);
-        Segment seg = ensureSegmentAt(segmentForHash(hash));
-        boolean success = seg.add(i, hash);
-        if (success) {
+        int segIndex = segmentForHash(hash);
+        Segment seg = ensureSegmentAt(segIndex);
+        boolean result = seg.add(i, hash);
+        if (result) {
             checkMax(i);
         }
-        return success;
+        return result;
     }
 
     @Override
@@ -441,7 +428,6 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
     public IntIterator intIterator() {
         return new KeyIterator();
     }
-
 
     private class KeyIterator implements IntIterator {
         int currSeg = 0;
@@ -495,6 +481,7 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         SEGSHIFT = 31 - Integer.numberOfLeadingZeros(ss);
     }
 
+
     /**
      * Use a hash to figure out the segment to use for a key.
      *
@@ -516,7 +503,6 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
     private int segmentForHash(int hash) {
         return (hash >>> segmentShift) & segmentMask;
     }
-
     private Segment segmentAt(int i) {
         return (Segment) UNSAFE.getObjectVolatile(this.segments, ((long) i << SEGSHIFT) + SEGBASE);
     }
@@ -534,10 +520,9 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         } while ((s = segmentAt(i)) == null);
         return s;
     }
-
     public static void main(String[] args) {
-        ConcurrentMonotonicIntHashSet m = new ConcurrentMonotonicIntHashSet();
-        int testSize = 10000;
+        CopyOfConcurrentMonotonicIntHashSet m = new CopyOfConcurrentMonotonicIntHashSet();
+        int testSize = 100;
         for (int i = 0; i < testSize; i++) {
             if (m.add(i) == false) {
                 throw new RuntimeException("add");
@@ -563,7 +548,7 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
 
         while (iter.hasNext()) {
             int i = iter.next();
-            //System.out.println(i);
+            System.out.println(i);
             if (!m.contains(i)) {
                 throw new RuntimeException("contains");
             }
