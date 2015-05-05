@@ -384,7 +384,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                 }
                 int newBucketLength = existingBuckets.length * 2;
                 Entry<V>[] newBuckets = new Entry[newBucketLength];
-                byte[] newBucketLengths = new byte[newBucketLength];
                 for (int i = 0; i < existingBuckets.length; i++) {
                     Entry<V> bhead = getBucketHead(existingBuckets, i);
                     // First find the longest tail of the bucket list that we can reuse, i.e., that map to the same bucket.
@@ -393,7 +392,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                     // This will reduce the number of Entrys that we need to create.
                     Entry<V> startOfLastChain = null;
                     int lastBucket = -1;
-                    int lengthLastChain = 0;
                     {
                         Entry<V> e = bhead;
                         while (e != null) {
@@ -406,17 +404,14 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                                     // let's ignore it.
                                     startOfLastChain = null;
                                     lastBucket = -1;
-                                    lengthLastChain = 0;
                                 }
                                 else {
                                     lastBucket = ind;
                                     startOfLastChain = e;
-                                    lengthLastChain = 1;
                                 }
                             }
                             else {
                                 // we are still part of the same chain.
-                                lengthLastChain++;
                             }
                             e = e.next;
                         }
@@ -425,7 +420,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                     // we will reuse startOfLastChain.
                     if (lastBucket >= 0) {
                         newBuckets[lastBucket] = startOfLastChain;
-                        newBucketLengths[lastBucket] = (byte) lengthLastChain;
                     }
 
                     Entry<V> e = bhead;
@@ -436,7 +430,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                         if (eval != null) {
                             int ind = bucketForHash(hash(ekey), newBucketLength);
                             newBuckets[ind] = new Entry<>(ekey, eval, newBuckets[ind]);
-                            newBucketLengths[ind]++;
                         }
                         e = e.next;
                     }
@@ -445,7 +438,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                 // now add the new entry
                 int ind = bucketForHash(hash, newBucketLength);
                 newBuckets[ind] = new Entry<>(key, value, newBuckets[ind]);
-                newBucketLengths[ind]++;
 
                 // now update the buckets
                 this.buckets = newBuckets;
