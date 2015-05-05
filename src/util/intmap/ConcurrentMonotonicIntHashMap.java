@@ -4,40 +4,75 @@ import java.lang.reflect.Field;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 import com.ibm.wala.util.intset.IntIterator;
 
 /**
  * XXX DOCO TODO
  */
-public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
-    private static final int INITIAL_BUCKET_SIZE = 16;
+public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
+    private static final int INITIAL_BUCKET_SIZE = 8;
     private static final int DEFAULT_CONCURRENCY_LEVEL = 32;
 
     /**
      * The threshold length on any one bucket to trigger a rehashing. Must be less than 127.
      */
-    private static final int THRESHOLD_BUCKET_LENGTH = 6;
+    private static final int THRESHOLD_BUCKET_LENGTH = 8;
 
-    private static class Entry<V> {
-        Entry(int key, AtomicReference<V> valueRef, Entry<V> next) {
+    private static final class Entry<V> {
+        Entry(int key, V value, Entry<V> next) {
             this.next = next;
             this.key = key;
-            this.valueRef = valueRef;
+            this.value = value;
             this.length = (byte) (next == null ? 1 : next.length + 1);
         }
+
+        final int key;
+        volatile V value;
         final Entry<V> next;
-        final int key; // also the hash
-        final AtomicReference<V> valueRef;
         final byte length; // length of the list starting with this node.
+
+        V getValue() {
+            return this.value;
+        }
+
+        /**
+         * Unsafe stuff...
+         */
+        static final sun.misc.Unsafe UNSAFE;
+        static final long valueOffset;
+        static {
+            try {
+                Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+                f.setAccessible(true);
+                UNSAFE = (sun.misc.Unsafe) f.get(null);
+                Class k = Entry.class;
+                valueOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("value"));
+            }
+            catch (Exception e) {
+                throw new Error(e);
+            }
+        }
+
+        boolean compareAndSetValue(V oldValue, V newValue) {
+            return UNSAFE.compareAndSwapObject(this, valueOffset, oldValue, newValue);
+        }
+
+        V getAndSetValue(V newValue) {
+            V old;
+            do {
+                old = this.value;
+            } while (!UNSAFE.compareAndSwapObject(this, valueOffset, old, newValue));
+            return old;
+        }
+
     }
 
 
-    private static class Segment<V> {
+    private static final class Segment<V> {
         private volatile Entry<V>[] buckets;
         /**
          * Number of deleted entries in the map (i.e., key-value pairs where the value is null). (May be approximate.)
@@ -53,12 +88,12 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
          * A read/write lock for the bucket array. Putting a new Entry requires a read lock.
          * Reizing the Segment (i.e., replacing the bucket array) requires the write lock.
          */
-        private final Lock bucketArrayReadLock;
-        private final Lock bucketArrayWriteLock;
+        private final ReadLock bucketArrayReadLock;
+        private final WriteLock bucketArrayWriteLock;
 
         public Segment(int initialCapacity) {
             this.buckets = new Entry[initialCapacity];
-            ReadWriteLock bucketArrayLock = new ReentrantReadWriteLock(false);
+            ReentrantReadWriteLock bucketArrayLock = new ReentrantReadWriteLock(false);
             bucketArrayReadLock = bucketArrayLock.readLock();
             bucketArrayWriteLock = bucketArrayLock.writeLock();
         }
@@ -66,27 +101,29 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
 
         public boolean containsKey(int i, int hash) {
             Entry<V>[] b = this.buckets;
-            AtomicReference<V> ref = getRef(i, hash, b);
-            return ref != null && ref.get() != null;
+            Entry<V> ref = getEntry(i, hash, b);
+            return ref != null && ref.getValue() != null;
         }
 
         public V get(int i, int hash) {
             Entry<V>[] b = this.buckets;
-            AtomicReference<V> ref = getRef(i, hash, b);
+            Entry<V> ref = getEntry(i, hash, b);
             if (ref != null) {
-                return ref.get();
+                return ref.getValue();
             }
             return null;
         }
 
-        private static <V> AtomicReference<V> getRef(int i, int hash, Entry<V>[] b) {
+        private static <V> Entry<V> getEntry(int i, int hash, Entry<V>[] b) {
             Entry<V> e = getBucketHead(b, bucketForHash(hash, b.length));
             while (e != null) {
                 if (e.key == i) {
-                    return e.valueRef;
+                    return e;
                 }
-                e = e.next;
-            }
+                Entry<V> enext = e.next;
+                assert (enext == null) ? (e.length == 1) : (e.length == enext.length + 1) : "Entry lengths do not agree: "
+                        + e.length + " and the next is " + (enext == null ? "null" : enext.length);
+                e = enext;            }
             return null;
         }
 
@@ -123,67 +160,74 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
          */
         private V put(int key, int hash, V val, boolean onlyIfAbsent) {
             outer: while (true) {
-                Entry<V>[] b = this.buckets;
+                // We need a read lock here, as we will be either modifying an Entry
+                // or adding a new Entry
+                boolean releasedReadLock = false;
+                this.bucketArrayReadLock.lock();
 
-                // check if we have an entry for i
-                int ind = bucketForHash(hash, b.length);
-                Entry<V> e = getBucketHead(b, ind);
-                Entry<V> firstEntry = e;
-                while (e != null) {
-                    if (e.key == key) {
-                        // we have an entry!
-                        while (true) {
-                            V existing = e.valueRef.get();
-                            if (onlyIfAbsent && existing != null) {
-                                // we don't want to put, since there is already an entry.
-                                return existing;
-                            }
-                            // update it and return.
-                            if (e.valueRef.compareAndSet(existing, val)) {
-                                // we successfully swapped it
-                                if (existing != null && val == null) {
-                                    // we effectively deleted it
-                                    this.deletedEntries.incrementAndGet();
-                                }
-                                else if (existing == null && val != null) {
-                                    // we effectively un-deleted it
-                                    this.deletedEntries.decrementAndGet();
-                                }
+                try {
+                    Entry<V>[] b = this.buckets;
 
-                                return existing;
+                    // check if we have an entry for i
+                    int ind = bucketForHash(hash, b.length);
+                    Entry<V> bucketHead = getBucketHead(b, ind);
+                    Entry<V> e = bucketHead;
+                    while (e != null) {
+                        if (e.key == key) {
+                            // we have an entry!
+                            while (true) {
+                                V existing = e.getValue();
+                                if (onlyIfAbsent && existing != null) {
+                                    // we don't want to put, since there is already an entry.
+                                    return existing;
+                                }
+                                // update it and return.
+                                if (e.compareAndSetValue(existing, val)) {
+                                    // we successfully swapped it
+                                    if (existing != null && val == null) {
+                                        // we effectively deleted it
+                                        this.deletedEntries.incrementAndGet();
+                                    }
+                                    else if (existing == null && val != null) {
+                                        // we effectively un-deleted it
+                                        this.deletedEntries.decrementAndGet();
+                                    }
+
+                                    return existing;
+                                }
+                                // we failed to update it, so try again.
                             }
-                            // we failed to update it, so try again.
+                        }
+                        e = e.next;
+                    }
+
+
+                    // there wasn't an entry, so we must be putting a non-empty value.
+                    assert val != null;
+
+                    // We add a new Entry
+                    // Check first to see if we want to resize
+                    if (bucketHead != null && bucketHead.length >= THRESHOLD_BUCKET_LENGTH) {
+                        // yes, we want to resize
+                        if (resize(b, key, hash, val)) {
+                            // we successfully resized and added the new entry
+                            releasedReadLock = true;
+                            return null;
+                        }
+                        // we decided not to resize, and haven't added the entry.
+                        // The read lock is still held.
+                        // Make sure the buckets haven't changed from under us,
+                        // then fall through and do the add.
+                        Entry<V>[] currentBuckets = this.buckets;
+                        if (currentBuckets != b) {
+                            // doh! the buckets changed under us, just try again.
+                            continue outer;
                         }
                     }
-                    e = e.next;
-                }
 
-
-                // there wasn't an entry, so we must be putting a non-empty value.
-                assert val != null;
-
-                // We add a new Entry
-                // Check first to see if we want to resize
-                if (firstEntry != null && firstEntry.length >= THRESHOLD_BUCKET_LENGTH) {
-                    // yes, we want to resize
-                    if (resize(b, key, hash, val)) {
-                        // we successfully resized and added the new entry
-                        return null;
-                    }
-                    // we decided not to resize, and haven't added the entry. Fall through and do it now.
-                }
-
-                // We want to add an Entry without resizing.
-                // get a read lock
-                this.bucketArrayReadLock.lock();
-                try {
-                    Entry<V>[] currentBuckets = this.buckets;
-                    if (currentBuckets != b) {
-                        // doh! the buckets changed under us, just try again.
-                        continue outer;
-                    }
-                    Entry<V> newE = new Entry<>(key, new AtomicReference<>(val), firstEntry);
-                    if (compareAndSwapBucketHead(b, ind, firstEntry, newE)) {
+                    // We want to add an Entry without resizing.
+                    Entry<V> newE = new Entry<>(key, val, bucketHead);
+                    if (compareAndSwapBucketHead(b, ind, bucketHead, newE)) {
                         // we swapped it! We are done.
                         // Return, which will unlock the read lock.
                         return null;
@@ -192,68 +236,110 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
                     // Release the read lock and try the put again, by continuing at the outer loop.
                 }
                 finally {
-                    this.bucketArrayReadLock.unlock();
+                    if (!releasedReadLock) {
+                        this.bucketArrayReadLock.unlock();
+                    }
                 }
             }
         }
 
         public V remove(int key, int hash) {
-            AtomicReference<V> ref = getRef(key, hash, this.buckets);
-            if (ref == null) {
-                return null;
+            this.bucketArrayReadLock.lock();
+            try {
+                Entry<V> ref = getEntry(key, hash, this.buckets);
+                if (ref == null) {
+                    return null;
+                }
+                V prev = ref.getAndSetValue(null);
+                if (prev != null) {
+                    this.deletedEntries.incrementAndGet();
+                }
+                return prev;
             }
-            V prev = ref.getAndSet(null);
-            if (prev != null) {
-                this.deletedEntries.incrementAndGet();
+            finally {
+                this.bucketArrayReadLock.unlock();
+
             }
-            return prev;
         }
 
         public boolean remove(int key, int hash, V value) {
             assert value != null;
-            AtomicReference<V> ref = getRef(key, hash, this.buckets);
-            if (ref == null) {
+            this.bucketArrayReadLock.lock();
+            try {
+
+                Entry<V> ref = getEntry(key, hash, this.buckets);
+                if (ref == null) {
+                    return false;
+                }
+                if (ref.compareAndSetValue(value, null)) {
+                    this.deletedEntries.incrementAndGet();
+                    return true;
+                }
                 return false;
             }
-            if (ref.compareAndSet(value, null)) {
-                this.deletedEntries.incrementAndGet();
-                return true;
+            finally {
+                this.bucketArrayReadLock.unlock();
+
             }
-            return false;
+
         }
 
         public boolean replace(int key, int hash, V oldValue, V newValue) {
             assert newValue != null;
-            AtomicReference<V> ref = getRef(key, hash, this.buckets);
-            if (ref == null) {
-                return false;
+            this.bucketArrayReadLock.lock();
+            try {
+
+                Entry<V> ref = getEntry(key, hash, this.buckets);
+                if (ref == null) {
+                    return false;
+                }
+                return ref.compareAndSetValue(oldValue, newValue);
             }
-            return ref.compareAndSet(oldValue, newValue);
+            finally {
+                this.bucketArrayReadLock.unlock();
+
+            }
+
         }
 
         public V replace(int key, int hash, V value) {
             assert value != null;
-            AtomicReference<V> ref = getRef(key, hash, this.buckets);
-            if (ref == null) {
-                return null;
+            this.bucketArrayReadLock.lock();
+            try {
+                Entry<V> ref = getEntry(key, hash, this.buckets);
+                if (ref == null) {
+                    return null;
+                }
+                return ref.getAndSetValue(value);
             }
-            return ref.getAndSet(value);
+            finally {
+                this.bucketArrayReadLock.unlock();
+
+            }
+
         }
 
         /**
          * Resize the buckets, and then add the key, value pair.
+         *
+         * Readlock must be held before calling. The read lock will be held at the end of the method if and only if it
+         * returns false.
          */
         private boolean resize(Entry<V>[] b, int key, int hash, V value) {
             if (!this.resizeInProgress.compareAndSet(false, true)) {
                 // someone else is resizing already
                 return false;
             }
+            // we want the write lock. Upgrade by first releasing the read lock
+            this.bucketArrayReadLock.unlock();
             this.bucketArrayWriteLock.lock();
             try {
                 Entry<V>[] existingBuckets = this.buckets;
 
                 if (b != existingBuckets) {
                     // someone already resized it from when we decided we needed to.
+                    // Upgrade to a read lock, but getting the read lock.
+                    this.bucketArrayReadLock.lock();
                     return false;
                 }
                 int newBucketLength = existingBuckets.length * 2;
@@ -292,16 +378,15 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
 
                     while (e != null && e != startOfLastChain) {
                         int ekey = e.key;
-                        AtomicReference<V> evalueRef = e.valueRef;
                         int ind = bucketForHash(hash(ekey), newBucketLength);
-                        newBuckets[ind] = new Entry<>(ekey, evalueRef, newBuckets[ind]);
+                        newBuckets[ind] = new Entry<>(ekey, e.getValue(), newBuckets[ind]);
                         e = e.next;
                     }
                 }
 
                 // now add the new entry
                 int ind = bucketForHash(hash, newBucketLength);
-                newBuckets[ind] = new Entry<>(key, new AtomicReference<>(value), newBuckets[ind]);
+                newBuckets[ind] = new Entry<>(key, value, newBuckets[ind]);
 
                 // now update the buckets
                 this.buckets = newBuckets;
@@ -362,7 +447,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
             BUCKETSHIFT = 31 - Integer.numberOfLeadingZeros(bs);
         }
 
-        static <V> Entry<V> getBucketHead(ConcurrentMonotonicIntHashMap.Entry<V>[] b, int i) {
+        static <V> Entry<V> getBucketHead(Entry<V>[] b, int i) {
             return (Entry<V>) UNSAFE.getObjectVolatile(b, ((long) i << BUCKETSHIFT) + BUCKETBASE);
         }
 
@@ -377,7 +462,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
         private static class SegmentKeyIterator<V> implements IntIterator {
             final Entry<V>[] bs;
             int currentIndex = -1;
-            ConcurrentMonotonicIntHashMap.Entry<?> currentEntry = null;
+            Entry<?> currentEntry = null;
             boolean valid = false;
 
             public SegmentKeyIterator(Entry<V>[] buckets) {
@@ -399,7 +484,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
                 // find the next Entry
                 while (currentIndex < bs.length) {
                     do {
-                        if (currentEntry != null && currentEntry.valueRef.get() != null) {
+                        if (currentEntry != null && currentEntry.getValue() != null) {
                             // we have a valid entry!
                             valid = true;
                             return true;
@@ -424,7 +509,7 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
                         throw new NoSuchElementException();
                     }
                     valid = false;
-                    if (currentEntry.valueRef.get() != null) {
+                    if (currentEntry.getValue() != null) {
                         return currentEntry.key;
                     }
                     // whoops, we have a deleted entry. Try again.
@@ -458,8 +543,8 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
         this(INITIAL_BUCKET_SIZE, concurrencyLevel);
     }
 
-    private ConcurrentMonotonicIntHashMap(int initialCapacity, int concurrencyLevel) {
-        // Find the power-of-two that is at least as big as concurrencyLevel and initialCapacity
+    public ConcurrentMonotonicIntHashMap(int initialCapacity, int concurrencyLevel) {
+        // Find the powers-of-two that is at least as big as concurrencyLevel and initialCapacity
         int sshift = 0;
         int ssize = 1;
         while (ssize < concurrencyLevel) {
@@ -684,8 +769,9 @@ public class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
             return s;
         }
         Segment<V> t = new Segment<>(this.segmentInitialCapacity);
+        long offset = ((long) i << SEGSHIFT) + SEGBASE;
         do {
-            if (UNSAFE.compareAndSwapObject(this.segments, ((long) i << SEGSHIFT) + SEGBASE, null, t)) {
+            if (UNSAFE.compareAndSwapObject(this.segments, offset, null, t)) {
                 return t;
             }
         } while ((s = segmentAt(i)) == null);
