@@ -11,17 +11,44 @@ import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 import com.ibm.wala.util.intset.IntIterator;
 
 /**
- * XXX DOCO TODO
+ * This class is a concurrent hash map with integer keys. It is designed to be suitable for (mostly) monotonically
+ * increasing maps, i.e., maps where keys are not removed.
+ *
+ * Here is a summary of the design of the map.
+ *
+ * There are n Segments, where each Segment is a thread-safe hash table. The number of segments is determined by the
+ * concurrency level.
+ *
+ * Each Segment contains a number of buckets, and each bucket is a linked list whose nodes are of class Entry. Each
+ * Segment has a read/write lock to control access to the bucket array. If a thread needs to either add or modify an
+ * Entry in a bucket (i.e., the put or replace methods), it needs a read lock. If a thread needs to modify the bucket
+ * array (i.e., the resize method), then it needs the write lock. Lookups in a Segment do not require a lock at all.
+ *
+ * The HashMap does in fact support a few deletes: deleted keys are represented by null values, but the corresponding
+ * Entry is not removed (until the next resize).
+ *
  */
 public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<V> {
-    private static final int INITIAL_BUCKET_SIZE = 8;
+    /**
+     * Default initial capacity of the hash map. This is just used to set the initial number of buckets in the segments.
+     */
+    private static final int DEFAULT_INITIAL_CAPACITY = 16;
+
+    /**
+     * Default concurrency level. This is essentially the number of Segments.
+     */
     private static final int DEFAULT_CONCURRENCY_LEVEL = 32;
 
     /**
-     * The threshold length on any one bucket to trigger a rehashing. Must be less than 127.
+     * The threshold length on any one bucket to trigger a resizing. Must be less than 127.
      */
-    private static final int THRESHOLD_BUCKET_LENGTH = 8;
+    private static final int THRESHOLD_BUCKET_LENGTH = 6;
 
+    /**
+     * An Entry is a node in a bucket's linked list. All fields are final, except for the value, which is volatile.
+     *
+     * @param <V>
+     */
     private static final class Entry<V> {
         Entry(int key, V value, Entry<V> next) {
             this.next = next;
@@ -71,33 +98,49 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
     }
 
-
+    /**
+     * A Segment is a thread safe hash table. A ConcurrentMonotonicIntHashMap has a fixed number of Segments, based on
+     * the concurrency of the hash map.
+     *
+     * @param <V>
+     */
     private static final class Segment<V> {
-        private volatile Entry<V>[] buckets;
         /**
-         * Number of deleted entries in the map (i.e., key-value pairs where the value is null). (May be approximate.)
+         * The buckets are simply linked lists. The read lock is needed to add an Entry to a bucket, or to modify an
+         * Entry that is already in a bucket. The write lock is needed to replace the buckets array, i.e., to change the
+         * number of buckets.
+         *
+         * The number of buckets should always be a power of two, since an optimization of the resize method depends on
+         * this.
+         */
+        private volatile Entry<V>[] buckets;
+
+        /**
+         * Number of deleted entries in the map (i.e., key-value pairs where the value is null).
          */
         private final AtomicInteger deletedEntries = new AtomicInteger(0);
 
         /**
-         * Is a resize in progress? We treat this like a lock.
+         * Is a resize in progress? We use this to ensure that at most one thread at a time is waiting to acquire the
+         * write lock to perform a resize.
          */
         private final AtomicBoolean resizeInProgress = new AtomicBoolean(false);
 
-        /**
-         * A read/write lock for the bucket array. Putting a new Entry requires a read lock.
-         * Reizing the Segment (i.e., replacing the bucket array) requires the write lock.
+        /*
+         * Read/writes lock for the bucket array. Putting a new Entry into a bucket, or
+         * modifying an Entry already in a bucket requires a read lock. Resizing the Segment (i.e.,
+         * replacing the bucket array) requires the write lock.
          */
         private final ReadLock bucketArrayReadLock;
         private final WriteLock bucketArrayWriteLock;
 
-        public Segment(int initialCapacity) {
-            this.buckets = new Entry[initialCapacity];
+        public Segment(int initialSize) {
+            this.buckets = new Entry[initialSize];
             ReentrantReadWriteLock bucketArrayLock = new ReentrantReadWriteLock(false);
             bucketArrayReadLock = bucketArrayLock.readLock();
             bucketArrayWriteLock = bucketArrayLock.writeLock();
+            assert (initialSize > 0 && ((initialSize & (initialSize - 1)) == 0)) : "initial size is not a power of two.";
         }
-
 
         public boolean containsKey(int i, int hash) {
             Entry<V>[] b = this.buckets;
@@ -114,24 +157,29 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
             return null;
         }
 
+        /**
+         * Get the entry from the bucket array.
+         *
+         * @param i
+         * @param hash
+         * @param b
+         * @return
+         */
         private static <V> Entry<V> getEntry(int i, int hash, Entry<V>[] b) {
             Entry<V> e = getBucketHead(b, bucketForHash(hash, b.length));
             while (e != null) {
                 if (e.key == i) {
                     return e;
                 }
-                Entry<V> enext = e.next;
-                assert (enext == null) ? (e.length == 1) : (e.length == enext.length + 1) : "Entry lengths do not agree: "
-                        + e.length + " and the next is " + (enext == null ? "null" : enext.length);
-                e = enext;            }
+
+                e = e.next;
+            }
             return null;
         }
 
         /**
-         * XXX
-         *
-         * @param i
-         * @return
+         * For the given hash of a key, what is the corresponding bucket to use? We require that numBuckets is a power
+         * of two, say 2^(n+1), and simply use the lesat n bits to determine the bucket.
          */
         private static int bucketForHash(int hash, int numBuckets) {
             return (numBuckets - 1) & hash;
@@ -151,12 +199,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
          * Put the entry (key, val) into the map. If onlyIfAbsent is true, then the put will only occur if there is not
          * already a mapping for key.
          *
-         * @param key
-         * @param val
-         * @param onlyIfAbsent
-         * @param onlyIfPresent
-         * @param oldValue
-         * @return
          */
         private V put(int key, int hash, V val, boolean onlyIfAbsent) {
             outer: while (true) {
@@ -167,7 +209,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
                 try {
                     Entry<V>[] b = this.buckets;
-
                     // check if we have an entry for i
                     int ind = bucketForHash(hash, b.length);
                     Entry<V> bucketHead = getBucketHead(b, ind);
@@ -200,7 +241,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                         }
                         e = e.next;
                     }
-
 
                     // there wasn't an entry, so we must be putting a non-empty value.
                     assert val != null;
@@ -344,6 +384,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                 }
                 int newBucketLength = existingBuckets.length * 2;
                 Entry<V>[] newBuckets = new Entry[newBucketLength];
+                byte[] newBucketLengths = new byte[newBucketLength];
                 for (int i = 0; i < existingBuckets.length; i++) {
                     Entry<V> bhead = getBucketHead(existingBuckets, i);
                     // First find the longest tail of the bucket list that we can reuse, i.e., that map to the same bucket.
@@ -352,6 +393,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                     // This will reduce the number of Entrys that we need to create.
                     Entry<V> startOfLastChain = null;
                     int lastBucket = -1;
+                    int lengthLastChain = 0;
                     {
                         Entry<V> e = bhead;
                         while (e != null) {
@@ -359,11 +401,22 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
                             if (ind != lastBucket) {
                                 // this is the start of a new chain!
-                                lastBucket = ind;
-                                startOfLastChain = e;
+                                if (e.getValue() == null) {
+                                    // ummm, this entry is actually deleted.
+                                    // let's ignore it.
+                                    startOfLastChain = null;
+                                    lastBucket = -1;
+                                    lengthLastChain = 0;
+                                }
+                                else {
+                                    lastBucket = ind;
+                                    startOfLastChain = e;
+                                    lengthLastChain = 1;
+                                }
                             }
                             else {
                                 // we are still part of the same chain.
+                                lengthLastChain++;
                             }
                             e = e.next;
                         }
@@ -372,14 +425,19 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                     // we will reuse startOfLastChain.
                     if (lastBucket >= 0) {
                         newBuckets[lastBucket] = startOfLastChain;
+                        newBucketLengths[lastBucket] = (byte) lengthLastChain;
                     }
 
                     Entry<V> e = bhead;
 
                     while (e != null && e != startOfLastChain) {
                         int ekey = e.key;
-                        int ind = bucketForHash(hash(ekey), newBucketLength);
-                        newBuckets[ind] = new Entry<>(ekey, e.getValue(), newBuckets[ind]);
+                        V eval = e.getValue();
+                        if (eval != null) {
+                            int ind = bucketForHash(hash(ekey), newBucketLength);
+                            newBuckets[ind] = new Entry<>(ekey, eval, newBuckets[ind]);
+                            newBucketLengths[ind]++;
+                        }
                         e = e.next;
                     }
                 }
@@ -387,6 +445,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                 // now add the new entry
                 int ind = bucketForHash(hash, newBucketLength);
                 newBuckets[ind] = new Entry<>(key, value, newBuckets[ind]);
+                newBucketLengths[ind]++;
 
                 // now update the buckets
                 this.buckets = newBuckets;
@@ -405,9 +464,9 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
             Entry<V>[] bs = this.buckets;
             int deleted = this.deletedEntries.get();
             for (int i = 0; i < bs.length; i++) {
-                Entry<V> e = getBucketHead(bs, i);
-                if (e != null) {
-                    count += e.length;
+                Entry<V> head = getBucketHead(bs, i);
+                if (head != null) {
+                    count += head.length;
                 }
             }
             count -= deleted;
@@ -456,7 +515,8 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         }
 
         /* ******************************************************************
-         * Iterator
+         * Iterator to go through keys in the segment. Contains a reference to the bucket array,
+         * so the iterator will work even if the Segment is resized.
          *
          */
         private static class SegmentKeyIterator<V> implements IntIterator {
@@ -484,12 +544,12 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                 // find the next Entry
                 while (currentIndex < bs.length) {
                     do {
-                        if (currentEntry != null && currentEntry.getValue() != null) {
-                            // we have a valid entry!
-                            valid = true;
-                            return true;
-                        }
                         if (currentEntry != null) {
+                            if (currentEntry.getValue() != null) {
+                                // we have a valid entry!
+                                valid = true;
+                                return true;
+                            }
                             currentEntry = currentEntry.next;
                         }
                     } while (currentEntry != null);
@@ -520,57 +580,68 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
     }
 
+    /**
+     * The Segments for this HashMap.
+     */
     private final Segment<V>[] segments;
 
     /**
-     * Best guess at the max key.
+     * Best guess at the max key. This is always an upper bound on the max key, but may be higher due to deletions.
      */
     private final AtomicInteger max = new AtomicInteger(-1);
 
     /**
-     * Initial capacity for segments when they are created.
+     * Initial size for segments when they are created.
      */
-    private final int segmentInitialCapacity;
+    private final int initialSegmentSize;
 
+    /*
+     * Used to compute the segment for a given hash.
+     */
     private final int segmentMask;
     private final int segmentShift;
 
     public ConcurrentMonotonicIntHashMap() {
-        this(INITIAL_BUCKET_SIZE, DEFAULT_CONCURRENCY_LEVEL);
+        this(DEFAULT_INITIAL_CAPACITY, DEFAULT_CONCURRENCY_LEVEL);
     }
 
     public ConcurrentMonotonicIntHashMap(int concurrencyLevel) {
-        this(INITIAL_BUCKET_SIZE, concurrencyLevel);
+        this(DEFAULT_INITIAL_CAPACITY, concurrencyLevel);
     }
 
     public ConcurrentMonotonicIntHashMap(int initialCapacity, int concurrencyLevel) {
         // Find the powers-of-two that is at least as big as concurrencyLevel and initialCapacity
-        int sshift = 0;
-        int ssize = 1;
-        while (ssize < concurrencyLevel) {
-            ++sshift;
-            ssize <<= 1;
+        int segShift = 0;
+        int segSize = 1;
+        while (segSize < concurrencyLevel) {
+            segShift++;
+            segSize <<= 1;
         }
 
-        this.segments = new Segment[ssize];
-        this.segmentMask = ssize - 1;
-        this.segmentShift = 32 - sshift;
+        this.segments = new Segment[segSize];
+        this.segmentMask = segSize - 1;
+        this.segmentShift = 32 - segShift;
 
         int initCap = 1;
         while (initCap < initialCapacity) {
             initCap <<= 1;
         }
 
-        this.segmentInitialCapacity = initCap;
+        int iss = initCap > segSize ? (initCap / segSize) : 2;
+        assert iss >= 2;
+        this.initialSegmentSize = iss;
     }
-
 
     @Override
     public boolean isEmpty() {
         return size() == 0;
     }
 
-
+    /**
+     * We just added key, update max if needed.
+     *
+     * @param key
+     */
     private void checkMax(int key) {
         int lastReturned;
         do {
@@ -586,7 +657,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
     public int max() {
         return this.max.get();
     }
-
 
     @Override
     public boolean containsKey(int i) {
@@ -613,7 +683,9 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         int hash = hash(i);
         Segment<V> seg = ensureSegmentAt(segmentForHash(hash));
         V res = seg.put(i, hash, val);
-        checkMax(i);
+        if (res == null) {
+            checkMax(i);
+        }
         return res;
     }
 
@@ -738,7 +810,9 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
     }
 
     /**
-     * Use a hash to figure out the segment to use for a key.
+     * Has for a key, needs to spread out the bits since this hash is used both to determine which segment to use, and
+     * within a segment, which bucket to use. The segment is determined by the most significant bits of the hash, and
+     * the bucket is determined by the least significant bits of the hash.
      *
      * @param key
      * @return
@@ -768,7 +842,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         if (s != null) {
             return s;
         }
-        Segment<V> t = new Segment<>(this.segmentInitialCapacity);
+        Segment<V> t = new Segment<>(this.initialSegmentSize);
         long offset = ((long) i << SEGSHIFT) + SEGBASE;
         do {
             if (UNSAFE.compareAndSwapObject(this.segments, offset, null, t)) {
@@ -778,8 +852,11 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         return s;
     }
 
+    /*
+     * Some simple test code.
+     */
     public static void main(String[] args) {
-        ConcurrentMonotonicIntHashMap<String> m = new ConcurrentMonotonicIntHashMap<>();
+        ConcurrentMonotonicIntHashMap<String> m = new ConcurrentMonotonicIntHashMap<>(4);
         int testSize = 100000;
         for (int i = 0; i < testSize; i++) {
             if (m.putIfAbsent(i, "val" + i) != null) {
@@ -852,6 +929,55 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
             throw new RuntimeException("max is " + m.max());
         }
         System.out.println("OK: " + m.max());
+
+        // print out states:
+        for (int i = 0; i < m.segments.length; i++) {
+            Segment<?> s = m.segments[i];
+            System.err.println("Segment " + i + " has " + s.buckets.length + " buckets and " + s.size() + " elements");
+
+            int[] tally = new int[50];
+            for (int j = 0; j < s.buckets.length; j++) {
+                Entry<?> e = s.buckets[j];
+                int t = (e == null ? 0 : e.length);
+                tally[t]++;
+            }
+            int bound = 0;
+            for (int j = tally.length - 1; j >= 0; j--) {
+                if (tally[j] > 0) {
+                    bound = j;
+                    break;
+                }
+            }
+            for (int j = 0; j < bound + 2; j++) {
+                System.err.println("     buckets with " + j + " elements: " + tally[j]);
+            }
+
+        }
+
+        // some simulation code to determine how long buckets get under certain load factors
+        /*
+        int s = 1 << 12;
+        int k = 1 + (int) (0.75f * s);
+        int[] counts = new int[s];
+        SecureRandom rand = new SecureRandom();
+        for (int i = 0; i < k; i++) {
+            counts[rand.nextInt(s)]++;
+        }
+        int[] tally = new int[k];
+        for (int i = 0; i < s; i++) {
+            tally[counts[i]]++;
+        }
+        int bound = 0;
+        for (int i = k - 1; i >= 0; i--) {
+            if (tally[i] > 0) {
+                bound = i;
+                break;
+            }
+        }
+        for (int i = 0; i < bound + 2; i++) {
+            System.err.println(" buckets with " + i + " elements: " + tally[i]);
+        }
+        */
     }
 
 }
