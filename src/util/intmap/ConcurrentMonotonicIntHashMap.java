@@ -378,12 +378,13 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
                 if (b != existingBuckets) {
                     // someone already resized it from when we decided we needed to.
-                    // Upgrade to a read lock, but getting the read lock.
+                    // Downgrade to a read lock. We do this by locking the read lock, and then, when we return, releasing the write lock.
                     this.bucketArrayReadLock.lock();
                     return false;
                 }
                 int newBucketLength = existingBuckets.length * 2;
                 Entry<V>[] newBuckets = new Entry[newBucketLength];
+                int deleted = this.deletedEntries.get();
                 for (int i = 0; i < existingBuckets.length; i++) {
                     Entry<V> bhead = getBucketHead(existingBuckets, i);
                     // First find the longest tail of the bucket list that we can reuse, i.e., that map to the same bucket.
@@ -431,6 +432,10 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                             int ind = bucketForHash(hash(ekey), newBucketLength);
                             newBuckets[ind] = new Entry<>(ekey, eval, newBuckets[ind]);
                         }
+                        else {
+                            // a deleted entry that we will clean up now by not adding it to the new bucket
+                            deleted--;
+                        }
                         e = e.next;
                     }
                 }
@@ -441,6 +446,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
                 // now update the buckets
                 this.buckets = newBuckets;
+                this.deletedEntries.set(deleted);
 
                 return true;
             }
@@ -453,8 +459,13 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
         public int size() {
             int count = 0;
+            // get a write lock, since we need a consistency between this.buckets and this.deletedEntries.
+            this.bucketArrayWriteLock.lock();
             Entry<V>[] bs = this.buckets;
             int deleted = this.deletedEntries.get();
+            // We can release the write lock now, since we have a consistent snapshot of deleted entries and this.buckets.
+            this.bucketArrayWriteLock.unlock();
+
             for (int i = 0; i < bs.length; i++) {
                 Entry<V> head = getBucketHead(bs, i);
                 if (head != null) {
@@ -462,9 +473,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                 }
             }
             count -= deleted;
-            if (count < 0) {
-                return 0;
-            }
+            assert count >= 0;
             return count;
         }
 
@@ -619,8 +628,8 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
             initCap <<= 1;
         }
 
-        int iss = initCap > segSize ? (initCap / segSize) : 2;
-        assert iss >= 2;
+        int iss = initCap > segSize ? (initCap / segSize) : 1;
+        assert iss >= 1;
         this.initialSegmentSize = iss;
     }
 
@@ -849,7 +858,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
      */
     public static void main(String[] args) {
         ConcurrentMonotonicIntHashMap<String> m = new ConcurrentMonotonicIntHashMap<>(4);
-        int testSize = 100000;
+        int testSize = 1;
         for (int i = 0; i < testSize; i++) {
             if (m.putIfAbsent(i, "val" + i) != null) {
                 throw new RuntimeException("putIfAbsent");
@@ -863,10 +872,10 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
         System.out.println("OK: B");
 
-        if (!m.put(10, "val" + 10).equals("val10")) {
+        if (testSize > 10 && !m.put(10, "val" + 10).equals("val10")) {
             throw new RuntimeException("put");
         }
-        if (!m.remove(9).equals("val9")) {
+        if (testSize >= 10 && !m.remove(9).equals("val9")) {
             throw new RuntimeException("remove");
         }
         if (m.containsKey(9)) {
@@ -879,10 +888,10 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
             throw new RuntimeException("remove");
         }
 
-        if (!m.putIfAbsent(11, "val11").equals("val11")) {
+        if (testSize > 10 && !m.putIfAbsent(11, "val11").equals("val11")) {
             throw new RuntimeException("putIfAbsent");
         }
-        if (m.size() != testSize - 1) {
+        if (testSize > 10 && m.size() != testSize - 1) {
             throw new RuntimeException("size");
         }
         IntIterator iter = m.keyIterator();
@@ -914,7 +923,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
             throw new RuntimeException("remove");
         }
 
-        if (count != testSize - 1) {
+        if (testSize > 10 && count != testSize - 1) {
             throw new RuntimeException("count is " + count);
         }
         if (m.max() != testSize - 1) {
@@ -923,25 +932,33 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         System.out.println("OK: " + m.max());
 
         // print out states:
+        System.out.println("Initial segment size is " + m.initialSegmentSize);
         for (int i = 0; i < m.segments.length; i++) {
             Segment<?> s = m.segments[i];
-            System.err.println("Segment " + i + " has " + s.buckets.length + " buckets and " + s.size() + " elements");
+            if (s == null) {
+                System.out.println("Segment " + i + " is null: 0 buckets and 0 elements");
 
-            int[] tally = new int[50];
-            for (int j = 0; j < s.buckets.length; j++) {
-                Entry<?> e = s.buckets[j];
-                int t = (e == null ? 0 : e.length);
-                tally[t]++;
             }
-            int bound = 0;
-            for (int j = tally.length - 1; j >= 0; j--) {
-                if (tally[j] > 0) {
-                    bound = j;
-                    break;
+            else {
+                System.out.println("Segment " + i + " has " + s.buckets.length + " buckets and " + s.size()
+                        + " elements (load is +" + (s.size() / ((float) s.buckets.length)) + ")");
+
+                int[] tally = new int[50];
+                for (int j = 0; j < s.buckets.length; j++) {
+                    Entry<?> e = s.buckets[j];
+                    int t = (e == null ? 0 : e.length);
+                    tally[t]++;
                 }
-            }
-            for (int j = 0; j < bound + 2; j++) {
-                System.err.println("     buckets with " + j + " elements: " + tally[j]);
+                int bound = 0;
+                for (int j = tally.length - 1; j >= 0; j--) {
+                    if (tally[j] > 0) {
+                        bound = j;
+                        break;
+                    }
+                }
+                for (int j = 0; j < bound + 2; j++) {
+                    System.out.println("     buckets with " + j + " elements: " + tally[j]);
+                }
             }
 
         }

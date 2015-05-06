@@ -380,7 +380,7 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
     private final Segment[] segments;
 
     /**
-     * Best guess at the max key. This is always an upper bound on the max key, but may be higher due to deletions.
+     * The max key.
      */
     private final AtomicInteger max = new AtomicInteger(-1);
 
@@ -421,8 +421,8 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
             initCap <<= 1;
         }
 
-        int iss = initCap > segSize ? (initCap / segSize) : 2;
-        assert iss >= 2;
+        int iss = initCap > segSize ? (initCap / segSize) : 1;
+        assert iss >= 1;
         this.initialSegmentSize = iss;
     }
 
