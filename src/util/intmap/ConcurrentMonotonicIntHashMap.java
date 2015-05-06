@@ -1,6 +1,7 @@
 package util.intmap;
 
 import java.lang.reflect.Field;
+import java.security.SecureRandom;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -853,12 +854,52 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         return s;
     }
 
+    private void dumpStats() {
+        System.out.println("Initial segment size is " + this.initialSegmentSize);
+        for (int i = 0; i < this.segments.length; i++) {
+            Segment<?> s = this.segments[i];
+            if (s == null) {
+                System.out.println("Segment " + i + " is null: 0 buckets and 0 elements");
+
+            }
+            else {
+                System.out.format("Segment " + i + " has %,d buckets and %,d elements (load is %.3f)%n",
+                                  s.buckets.length,
+                                  s.size(),
+                                  (s.size() / ((float) s.buckets.length)));
+
+                int[] tally = new int[50];
+                for (int j = 0; j < s.buckets.length; j++) {
+                    Entry<?> e = s.buckets[j];
+                    int t = (e == null ? 0 : e.length);
+                    tally[t]++;
+                }
+                int bound = 0;
+                for (int j = tally.length - 1; j >= 0; j--) {
+                    if (tally[j] > 0) {
+                        bound = j;
+                        break;
+                    }
+                }
+                // log is the max number of characters that the tally can have when printed.
+                int log = (int) Math.ceil(Math.log10(s.buckets.length));
+                // Now account for commas every 3 characters.
+                log += (log / 3);
+                for (int j = 0; j < bound + 2; j++) {
+                    System.out.format("     buckets with " + j + " elements: %," + log + "d%n", tally[j]);
+                }
+            }
+
+        }
+
+    }
+
     /*
      * Some simple test code.
      */
     public static void main(String[] args) {
         ConcurrentMonotonicIntHashMap<String> m = new ConcurrentMonotonicIntHashMap<>(4);
-        int testSize = 1;
+        int testSize = 1000000;
         for (int i = 0; i < testSize; i++) {
             if (m.putIfAbsent(i, "val" + i) != null) {
                 throw new RuntimeException("putIfAbsent");
@@ -932,61 +973,16 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         System.out.println("OK: " + m.max());
 
         // print out states:
-        System.out.println("Initial segment size is " + m.initialSegmentSize);
-        for (int i = 0; i < m.segments.length; i++) {
-            Segment<?> s = m.segments[i];
-            if (s == null) {
-                System.out.println("Segment " + i + " is null: 0 buckets and 0 elements");
-
-            }
-            else {
-                System.out.println("Segment " + i + " has " + s.buckets.length + " buckets and " + s.size()
-                        + " elements (load is +" + (s.size() / ((float) s.buckets.length)) + ")");
-
-                int[] tally = new int[50];
-                for (int j = 0; j < s.buckets.length; j++) {
-                    Entry<?> e = s.buckets[j];
-                    int t = (e == null ? 0 : e.length);
-                    tally[t]++;
-                }
-                int bound = 0;
-                for (int j = tally.length - 1; j >= 0; j--) {
-                    if (tally[j] > 0) {
-                        bound = j;
-                        break;
-                    }
-                }
-                for (int j = 0; j < bound + 2; j++) {
-                    System.out.println("     buckets with " + j + " elements: " + tally[j]);
-                }
-            }
-
-        }
-
+        m.dumpStats();
         // some simulation code to determine how long buckets get under certain load factors
-        /*
-        int s = 1 << 12;
-        int k = 1 + (int) (0.75f * s);
-        int[] counts = new int[s];
+
+        System.out.println("\n\n\nTest with random keys");
         SecureRandom rand = new SecureRandom();
-        for (int i = 0; i < k; i++) {
-            counts[rand.nextInt(s)]++;
+        m = new ConcurrentMonotonicIntHashMap<>(4);
+        for (int i = 0; i < testSize; i++) {
+            m.put(rand.nextInt(), "Dummy");
         }
-        int[] tally = new int[k];
-        for (int i = 0; i < s; i++) {
-            tally[counts[i]]++;
-        }
-        int bound = 0;
-        for (int i = k - 1; i >= 0; i--) {
-            if (tally[i] > 0) {
-                bound = i;
-                break;
-            }
-        }
-        for (int i = 0; i < bound + 2; i++) {
-            System.err.println(" buckets with " + i + " elements: " + tally[i]);
-        }
-        */
+        m.dumpStats();
     }
 
 }
