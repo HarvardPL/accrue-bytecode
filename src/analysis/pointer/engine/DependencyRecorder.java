@@ -1,7 +1,7 @@
 package analysis.pointer.engine;
 
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
-import analysis.pointer.graph.StringSolutionVariable;
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -45,7 +45,7 @@ public interface DependencyRecorder {
      * @param v
      * @param sac
      */
-    void recordRead(StringSolutionVariable v, StmtAndContext sac);
+    void recordRead(StringLikeLocationReplica v, StmtAndContext sac);
 
     /**
      * Record that processing of sac (will) write (i.e., update) StringSolutionVariable v
@@ -53,6 +53,7 @@ public interface DependencyRecorder {
      * @param v
      * @param sac
      */
-    void recordWrite(StringSolutionVariable v, StmtAndContext sac);
+    void recordWrite(StringLikeLocationReplica v, StmtAndContext sac);
 
+    void printStringDependencyTree(StringLikeLocationReplica v);
 }

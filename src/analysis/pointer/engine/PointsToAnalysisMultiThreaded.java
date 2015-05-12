@@ -19,7 +19,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.StringSolutionVariable;
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ConstraintStatement;
@@ -129,13 +129,18 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void recordRead(StringSolutionVariable v, StmtAndContext sac) {
+            public void recordRead(StringLikeLocationReplica v, StmtAndContext sac) {
                 stringDependencies.recordRead(v, sac);
             }
 
             @Override
-            public void recordWrite(StringSolutionVariable v, StmtAndContext sac) {
+            public void recordWrite(StringLikeLocationReplica v, StmtAndContext sac) {
                 stringDependencies.recordWrite(v, sac);
+            }
+
+            @Override
+            public void printStringDependencyTree(StringLikeLocationReplica v) {
+                stringDependencies.printStringDependencyTree(v, "  ");
             }
         };
 
@@ -270,10 +275,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         // first gather up all the string statements that need to be processed.
         Set<StmtAndContext> reprocess = new HashSet<>();
-        for (StringSolutionVariable v : delta.getStringConstraintDelta().getNewlyActivated()) {
+        for (StringLikeLocationReplica v : delta.getStringConstraintDelta().getNewlyActivated()) {
             reprocess.addAll(stringDependencies.getWriteTo(v));
         }
-        for (StringSolutionVariable v : delta.getStringConstraintDelta().getUpdated()) {
+        for (StringLikeLocationReplica v : delta.getStringConstraintDelta().getUpdated()) {
             reprocess.addAll(stringDependencies.getReadFrom(v));
         }
         // now process them...

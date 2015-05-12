@@ -8,23 +8,23 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 public class StaticOrSpecialMethodCallString extends MethodCallString {
 
-    private final List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters;
-    private final StringVariable formalReturn;
-    private final StringVariable actualReturn;
+    private final List<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters;
+    private final StringLikeVariable formalReturn;
+    private final StringLikeVariable actualReturn;
     private final IMethod targetMethod;
 
     public StaticOrSpecialMethodCallString(IMethod method,
-                                           List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
-                                           StringVariable returnedVariable, StringVariable returnToVariable,
+                                           List<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters,
+                                           StringLikeVariable returnedVariable, StringLikeVariable returnToVariable,
                                            IMethod targetMethod) {
         super(method);
         this.stringArgumentAndParameters = stringArgumentAndParameters;
@@ -37,11 +37,11 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
         boolean writersAreActive = false;
         if (this.formalReturn != null) {
-            g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.formalReturn));
+            g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.formalReturn));
         }
 
-        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
-            StringVariableReplica parametersvr = new StringVariableReplica(context, argumentAndParameter.snd());
+        for (OrderedPair<StringLikeVariable, StringLikeVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringLikeVariableReplica parametersvr = new StringLikeVariableReplica(context, argumentAndParameter.snd());
             writersAreActive |= g.stringSolutionVariableReplicaIsActive(parametersvr);
         }
 
@@ -52,15 +52,15 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
-        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
-            StringVariableReplica argumentsvr = new StringVariableReplica(context, argumentAndParameter.fst());
+        for (OrderedPair<StringLikeVariable, StringLikeVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringLikeVariableReplica argumentsvr = new StringLikeVariableReplica(context, argumentAndParameter.fst());
 
             g.recordStringStatementUseDependency(argumentsvr, originator);
         }
 
         assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
         if (actualReturn != null) {
-            StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
+            StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, formalReturn);
 
             g.recordStringStatementUseDependency(formalReturnSVR, originator);
         }
@@ -71,15 +71,15 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
-            StringVariableReplica parametersvr = new StringVariableReplica(context, argumentAndParameter.snd());
+        for (OrderedPair<StringLikeVariable, StringLikeVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringLikeVariableReplica parametersvr = new StringLikeVariableReplica(context, argumentAndParameter.snd());
 
             g.recordStringStatementDefineDependency(parametersvr, originator);
         }
 
         assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
         if (actualReturn != null) {
-            StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
+            StringLikeVariableReplica actualReturnSVR = new StringLikeVariableReplica(context, actualReturn);
 
             g.recordStringStatementDefineDependency(actualReturnSVR, originator);
         }
@@ -91,15 +91,15 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
                                  StmtAndContext originator, StatementRegistrar registrar) {
         GraphDelta changes = new GraphDelta(g);
 
-        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
-            StringVariableReplica argumentsvr = new StringVariableReplica(context, argumentAndParameter.fst());
+        for (OrderedPair<StringLikeVariable, StringLikeVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringLikeVariableReplica argumentsvr = new StringLikeVariableReplica(context, argumentAndParameter.fst());
 
             changes.combine(g.activateStringSolutionVariable(argumentsvr));
         }
 
         assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
         if (actualReturn != null) {
-            StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
+            StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, formalReturn);
 
             changes.combine(g.activateStringSolutionVariable(formalReturnSVR));
         }

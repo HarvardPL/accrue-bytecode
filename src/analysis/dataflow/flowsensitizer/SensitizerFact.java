@@ -1,59 +1,83 @@
 package analysis.dataflow.flowsensitizer;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import util.OrderedPair;
 
 public class SensitizerFact implements LatticeJoin<SensitizerFact> {
-    private final Map<Integer, Set<Integer>> m;
+    private final Relation<Integer, OrderedPair<Integer, Integer>> m;
     private final Set<Integer> escaped;
 
+    /*
+     * Public Factories
+     */
+
     public static SensitizerFact makeBottom() {
-        return new SensitizerFact(new HashMap<Integer, Set<Integer>>(), new HashSet<Integer>());
+        return new SensitizerFact(Relation.<Integer, OrderedPair<Integer, Integer>> makeBottom(),
+                                  new HashSet<Integer>());
     }
 
-    private SensitizerFact(Map<Integer, Set<Integer>> m, Set<Integer> escaped) {
+    /*
+     * Private Constructors
+     */
+
+    private SensitizerFact(Relation<Integer, OrderedPair<Integer, Integer>> m, Set<Integer> escaped) {
         this.m = m;
         this.escaped = escaped;
     }
 
-    private SensitizerFact updateM(Map<Integer, Set<Integer>> m) {
+    /*
+     * Super class interface
+     */
+
+    @Override
+    public SensitizerFact join(SensitizerFact that) {
+        Relation<Integer, OrderedPair<Integer, Integer>> r = this.m.join(that.m);
+        Set<Integer> s = new HashSet<>(this.escaped);
+        s.addAll(that.escaped);
+        return new SensitizerFact(r, s);
+    }
+
+    /*
+     * Logic
+     */
+
+    public SensitizerFact initTime(int varNum, int l) {
+        if (this.isEscaped(varNum)) {
+            return this;
+        }
+        else {
+            Relation<Integer, OrderedPair<Integer, Integer>> r = this.m.clone();
+            r.add(varNum, new OrderedPair<>(l, l));
+            return updateM(r);
+        }
+    }
+
+    public SensitizerFact tick(int varNum, int l) {
+        if (this.isEscaped(varNum)) {
+            return this;
+        }
+        else {
+            Relation<Integer, OrderedPair<Integer, Integer>> r = this.m.clone();
+            Set<OrderedPair<Integer, Integer>> s = r.get(varNum);
+            Set<OrderedPair<Integer, Integer>> news = new HashSet<>(s.size());
+            for (OrderedPair<Integer, Integer> p : s) {
+                Integer definitionSite = p.fst();
+                Integer time = p.snd();
+                news.add(new OrderedPair<>(definitionSite, l));
+            }
+            r.replace(varNum, news);
+            return updateM(r);
+        }
+    }
+
+    private SensitizerFact updateM(Relation<Integer, OrderedPair<Integer, Integer>> m) {
         return new SensitizerFact(m, this.escaped);
     }
 
     private SensitizerFact updateEscaped(Set<Integer> escaped) {
         return new SensitizerFact(this.m, escaped);
-    }
-
-    public SensitizerFact addToSetAt(int var, int sensitizer) {
-        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
-
-        DataFlowUtilities.putInSetMap(m, var, sensitizer);
-
-        return updateM(m);
-    }
-
-    public SensitizerFact replaceSetAt(int var, Set<Integer> s) {
-        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
-
-        m.put(var, s);
-
-        return updateM(m);
-    }
-
-    public SensitizerFact replaceSetsAt(Set<OrderedPair<Integer, Set<Integer>>> updates) {
-        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
-
-        for (OrderedPair<Integer, Set<Integer>> update : updates) {
-            Integer key = update.fst();
-            Set<Integer> s = update.snd();
-            m.put(key, s);
-        }
-
-        return updateM(m);
     }
 
     public SensitizerFact addEscapee(int var) {
@@ -66,19 +90,33 @@ public class SensitizerFact implements LatticeJoin<SensitizerFact> {
         return escaped.contains(var);
     }
 
-    @Override
-    public SensitizerFact join(SensitizerFact that) {
-        Map<Integer, Set<Integer>> m = DataFlowUtilities.deepCopyMap(this.m);
-        Set<Integer> escaped = new HashSet<>(this.escaped);
-
-        DataFlowUtilities.combineMaps(m, that.m);
-        escaped.addAll(that.escaped);
-
-        return new SensitizerFact(m, escaped);
+    public SensitizerFact mustAlias(int def, int use) {
+        Relation<Integer, OrderedPair<Integer, Integer>> r = this.m.clone();
+        r.replace(def, r.get(use));
+        return updateM(r);
     }
 
-    public Map<Integer, Set<Integer>> getMap() {
+    public SensitizerFact mayAlias(int def, int use) {
+        if (this.isEscaped(def)) {
+            return this;
+        }
+        else {
+            Relation<Integer, OrderedPair<Integer, Integer>> r = this.m.clone();
+            r.addAll(def, r.get(use));
+            return updateM(r);
+        }
+    }
+
+    public Relation<Integer, OrderedPair<Integer, Integer>> getRelation() {
         return this.m;
+    }
+
+    public Set<Integer> getEscaped() {
+        return this.escaped;
+    }
+
+    public boolean upperBounds(SensitizerFact that) {
+        return this.escaped.containsAll(that.escaped) && this.m.upperBounds(that.m);
     }
 
     /*
@@ -93,6 +131,7 @@ public class SensitizerFact implements LatticeJoin<SensitizerFact> {
     public int hashCode() {
         final int prime = 31;
         int result = 1;
+        result = prime * result + ((escaped == null) ? 0 : escaped.hashCode());
         result = prime * result + ((m == null) ? 0 : m.hashCode());
         return result;
     }
@@ -109,6 +148,14 @@ public class SensitizerFact implements LatticeJoin<SensitizerFact> {
             return false;
         }
         SensitizerFact other = (SensitizerFact) obj;
+        if (escaped == null) {
+            if (other.escaped != null) {
+                return false;
+            }
+        }
+        else if (!escaped.equals(other.escaped)) {
+            return false;
+        }
         if (m == null) {
             if (other.m != null) {
                 return false;
@@ -122,7 +169,7 @@ public class SensitizerFact implements LatticeJoin<SensitizerFact> {
 
     @Override
     public String toString() {
-        return "(SensitizerFact " + m + ")";
+        return "SensitizerFact [m=" + m + ", escaped=" + escaped + "]";
     }
 
 }

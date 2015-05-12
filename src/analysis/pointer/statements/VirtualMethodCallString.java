@@ -13,11 +13,11 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.MethodStringSummary;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -29,14 +29,14 @@ import com.ibm.wala.types.TypeReference;
 
 public class VirtualMethodCallString extends MethodCallString {
 
-    private final List<OrderedPair<StringVariable, Integer>> stringArgumentAndParamNums;
-    private final StringVariable actualReturn;
+    private final List<OrderedPair<StringLikeVariable, Integer>> stringArgumentAndParamNums;
+    private final StringLikeVariable actualReturn;
     private final MethodReference declaredTarget;
     private final ReferenceVariable receiver;
 
     public VirtualMethodCallString(IMethod method,
-                                   ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParamNums,
-                                   StringVariable returnToVariable, MethodReference declaredTarget,
+                                   ArrayList<OrderedPair<StringLikeVariable, Integer>> stringArgumentAndParamNums,
+                                   StringLikeVariable returnToVariable, MethodReference declaredTarget,
                                    ReferenceVariable receiver) {
         super(method);
         this.stringArgumentAndParamNums = stringArgumentAndParamNums;
@@ -51,7 +51,7 @@ public class VirtualMethodCallString extends MethodCallString {
                                        StatementRegistrar registrar) {
         boolean writersAreActive = false;
         if (this.actualReturn != null) {
-            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context,
                                                                                                   this.actualReturn));
         }
 
@@ -61,8 +61,8 @@ public class VirtualMethodCallString extends MethodCallString {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
             MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
+            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context,
                                                                                                       summary.getFormals()
                                                                                                              .get(pair.snd())));
             }
@@ -81,14 +81,14 @@ public class VirtualMethodCallString extends MethodCallString {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
             MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                StringVariableReplica argument = new StringVariableReplica(context, pair.fst());
+            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                StringLikeVariableReplica argument = new StringLikeVariableReplica(context, pair.fst());
                 g.recordStringStatementUseDependency(argument, originator);
             }
 
             assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
             if (actualReturn != null) {
-                StringVariableReplica formalReturnSVR = new StringVariableReplica(context, summary.getRet());
+                StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
                 g.recordStringStatementUseDependency(formalReturnSVR, originator);
             }
         }
@@ -105,8 +105,8 @@ public class VirtualMethodCallString extends MethodCallString {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
             MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                StringVariableReplica parameter = new StringVariableReplica(context, summary.getFormals()
+            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                StringLikeVariableReplica parameter = new StringLikeVariableReplica(context, summary.getFormals()
                                                                                             .get(pair.snd()));
                 g.recordStringStatementDefineDependency(parameter, originator);
             }
@@ -114,7 +114,7 @@ public class VirtualMethodCallString extends MethodCallString {
             assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null. summary is "
                     + summary + " actualReturn is " + actualReturn;
             if (actualReturn != null) {
-                StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
+                StringLikeVariableReplica actualReturnSVR = new StringLikeVariableReplica(context, actualReturn);
 
                 g.recordStringStatementDefineDependency(actualReturnSVR, originator);
             }
@@ -133,14 +133,14 @@ public class VirtualMethodCallString extends MethodCallString {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
             MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                StringVariableReplica argument = new StringVariableReplica(context, pair.fst());
+            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                StringLikeVariableReplica argument = new StringLikeVariableReplica(context, pair.fst());
                 changes.combine(g.activateStringSolutionVariable(argument));
             }
 
             assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
             if (actualReturn != null) {
-                StringVariableReplica formalReturnSVR = new StringVariableReplica(context, summary.getRet());
+                StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
 
                 changes.combine(g.activateStringSolutionVariable(formalReturnSVR));
             }
@@ -160,9 +160,9 @@ public class VirtualMethodCallString extends MethodCallString {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
             MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            ArrayList<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters = new ArrayList<>();
-            for (OrderedPair<StringVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                OrderedPair<StringVariable, StringVariable> newpair = new OrderedPair<>(pair.fst(),
+            ArrayList<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters = new ArrayList<>();
+            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                OrderedPair<StringLikeVariable, StringLikeVariable> newpair = new OrderedPair<>(pair.fst(),
                                                                                         summary.getFormals()
                                                                                                .get(pair.snd()));
                 stringArgumentAndParameters.add(newpair);

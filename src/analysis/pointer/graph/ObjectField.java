@@ -1,5 +1,12 @@
 package analysis.pointer.graph;
 
+import java.util.Collections;
+import java.util.Set;
+
+import analysis.pointer.graph.strings.StringFieldLocationReplica;
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.graph.strings.StringSolutionReplica;
+
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
@@ -7,7 +14,7 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Point-to graph node representing a non-static field of an object
  */
-public final class ObjectField implements PointsToGraphNode, StringSolutionVariable {
+public final class ObjectField implements PointsToGraphNode, StringSolutionReplica {
 
     /**
      * Heap context for the receiver of the field
@@ -30,15 +37,11 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionVaria
     /**
      * Points-to graph node representing a non-static field of an object
      *
-     * @param receiver
-     *            heap context for the receiver
-     * @param fieldName
-     *            name of the field
-     * @param expectedType
-     *            type of the field
+     * @param receiver heap context for the receiver
+     * @param fieldName name of the field
+     * @param expectedType type of the field
      */
-    public ObjectField(InstanceKey receiver, String fieldName,
-            TypeReference expectedType) {
+    public ObjectField(InstanceKey receiver, String fieldName, TypeReference expectedType) {
         assert receiver != null;
         assert fieldName != null;
         assert expectedType != null;
@@ -51,15 +54,11 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionVaria
     /**
      * Points-to graph node representing a non-static field of an object
      *
-     * @param receiver
-     *            heap context for the receiver
-     * @param fieldReference
-     *            the field
+     * @param receiver heap context for the receiver
+     * @param fieldReference the field
      */
     public ObjectField(InstanceKey receiver, FieldReference fieldReference) {
-        this(receiver,
-             fieldReference.getName().toString(),
-             fieldReference.getFieldType());
+        this(receiver, fieldReference.getName().toString(), fieldReference.getFieldType());
     }
 
     @Override
@@ -67,14 +66,16 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionVaria
         return expectedType;
     }
 
+    @Override
+    public Set<StringLikeLocationReplica> getStringLocations() {
+        return Collections.<StringLikeLocationReplica> singleton(StringFieldLocationReplica.make(this));
+    }
+
     public int computeHashCode() {
         final int prime = 31;
         int result = 1;
-        result =
-                prime * result
-                        + (expectedType == null ? 0 : expectedType.hashCode());
-        result =
-                prime * result + (fieldName == null ? 0 : fieldName.hashCode());
+        result = prime * result + (expectedType == null ? 0 : expectedType.hashCode());
+        result = prime * result + (fieldName == null ? 0 : fieldName.hashCode());
         result = prime * result + memoizedHashCode;
         result = prime * result + (receiver == null ? 0 : receiver.hashCode());
         return result;
@@ -135,4 +136,5 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionVaria
     public TypeReference expectedType() {
         return expectedType;
     }
+
 }

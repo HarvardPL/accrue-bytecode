@@ -17,10 +17,11 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -43,7 +44,7 @@ public class ForNameCallStatement extends PointsToStatement {
     private final IMethod caller;
     private final MethodReference callee;
     private final ReferenceVariable result;
-    private final List<StringVariable> actuals;
+    private final List<StringLikeVariable> actuals;
 
     public static boolean isForNameCall(SSAInvokeInstruction i) {
         IMethod m = AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget());
@@ -51,7 +52,7 @@ public class ForNameCallStatement extends PointsToStatement {
     }
 
     public ForNameCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
-                                ReferenceVariable result, List<StringVariable> actuals) {
+                                ReferenceVariable result, List<StringLikeVariable> actuals) {
         super(caller);
         this.callSite = callSite;
         this.caller = caller;
@@ -65,7 +66,7 @@ public class ForNameCallStatement extends PointsToStatement {
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica resultRVR = new ReferenceVariableReplica(context, this.result, haf);
-        StringVariableReplica nameSVR = new StringVariableReplica(context, this.actuals.get(0));
+        StringLikeVariableReplica nameSVR = new StringLikeVariableReplica(context, this.actuals.get(0));
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -74,40 +75,41 @@ public class ForNameCallStatement extends PointsToStatement {
         Logger.println("[ForNameCallStatement] ___________________________");
         Logger.println("[ForNameCallStatement] in method: " + this.getMethod());
         Logger.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
-
         //g.printSVRDependencyTree(nameSVR);
 
         changed.combine(g.activateStringSolutionVariable(nameSVR));
 
         PointsToIterable pti = delta == null ? g : delta;
 
-        AString namehat = g.getAStringFor(nameSVR);
+        for (StringLikeLocationReplica nameLocation : nameSVR.getStringLocations()) {
+            AString namehat = g.getAStringFor(nameLocation);
 
-        Logger.println("[ForNameCallStatement] reaching class names are " + namehat);
+            Logger.println("[ForNameCallStatement] reaching class names are " + namehat);
 
-        AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, null, // XXX: I'm duplicating existing forName calls
-                                                                 false);
-        FiniteSet<IClass> classes;
-        if (namehat.isTop()) {
-            classes = ((ReflectiveHAF) haf).getAClassTop();
-        }
-        else if (namehat.isBottom()) {
-            classes = ((ReflectiveHAF) haf).getAClassBottom();
-        }
-        else {
-            Set<IClass> classSet = new HashSet<>();
-            for (String string : namehat.getStrings()) {
-                Optional<IClass> maybeIClass = stringToIClass(string);
-                if (maybeIClass.isSome()) {
-                    classSet.add(maybeIClass.get());
-                }
+            AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, null, // XXX: I'm duplicating existing forName calls
+                                                                     false);
+            FiniteSet<IClass> classes;
+            if (namehat.isTop()) {
+                classes = ((ReflectiveHAF) haf).getAClassTop();
             }
-            classes = ((ReflectiveHAF) haf).getAClassSet(classSet);
-        }
+            else if (namehat.isBottom()) {
+                classes = ((ReflectiveHAF) haf).getAClassBottom();
+            }
+            else {
+                Set<IClass> classSet = new HashSet<>();
+                for (String string : namehat.getStrings()) {
+                    Optional<IClass> maybeIClass = stringToIClass(string);
+                    if (maybeIClass.isSome()) {
+                        classSet.add(maybeIClass.get());
+                    }
+                }
+                classes = ((ReflectiveHAF) haf).getAClassSet(classSet);
+            }
 
-        Logger.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
-        changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
-        Logger.pop();
+            Logger.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
+            changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
+            Logger.pop();
+        }
         return changed;
     }
 

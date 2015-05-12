@@ -4,29 +4,28 @@ import java.util.Collections;
 import java.util.Set;
 
 import analysis.StringAndReflectiveUtil;
+import analysis.pointer.graph.strings.EscapedStringLocationReplica;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
-import analysis.pointer.graph.strings.StringLocationReplica;
 
-import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
 
-public class LocalStringVariable implements StringLikeVariable {
-    private final IMethod method;
-    private final int varNum;
+public class FieldStringBuilderVariable implements StringLikeVariable {
 
-    public static StringLikeVariable make(IMethod method, int varNum) {
-        return new LocalStringVariable(method, varNum);
+    private final IField f;
+
+    public static StringLikeVariable make(IField f) {
+        return new FieldStringBuilderVariable(f);
     }
 
-    private LocalStringVariable(IMethod method, int varNum) {
-        this.method = method;
-        this.varNum = varNum;
+    private FieldStringBuilderVariable(IField f) {
+        this.f = f;
     }
 
     @Override
     public Set<StringLikeLocationReplica> getStringLocationReplicas(Context context) {
-        return Collections.<StringLikeLocationReplica> singleton(StringLocationReplica.make(context, this));
+        return Collections.singleton(EscapedStringLocationReplica.make());
     }
 
     @Override
@@ -41,12 +40,12 @@ public class LocalStringVariable implements StringLikeVariable {
 
     @Override
     public boolean isStringBuilder() {
-        return false;
+        return true;
     }
 
     @Override
     public boolean isString() {
-        return true;
+        return false;
     }
 
     @Override
@@ -58,8 +57,7 @@ public class LocalStringVariable implements StringLikeVariable {
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + ((method == null) ? 0 : method.hashCode());
-        result = prime * result + varNum;
+        result = prime * result + ((f == null) ? 0 : f.hashCode());
         return result;
     }
 
@@ -71,19 +69,16 @@ public class LocalStringVariable implements StringLikeVariable {
         if (obj == null) {
             return false;
         }
-        if (!(obj instanceof LocalStringVariable)) {
+        if (!(obj instanceof FieldStringBuilderVariable)) {
             return false;
         }
-        LocalStringVariable other = (LocalStringVariable) obj;
-        if (method == null) {
-            if (other.method != null) {
+        FieldStringBuilderVariable other = (FieldStringBuilderVariable) obj;
+        if (f == null) {
+            if (other.f != null) {
                 return false;
             }
         }
-        else if (!method.equals(other.method)) {
-            return false;
-        }
-        if (varNum != other.varNum) {
+        else if (!f.equals(other.f)) {
             return false;
         }
         return true;
@@ -91,7 +86,7 @@ public class LocalStringVariable implements StringLikeVariable {
 
     @Override
     public String toString() {
-        return "LocalStringVariable [method=" + method + ", varNum=" + varNum + "]";
+        return "FieldStringBuilderVariable [f=" + f + "]";
     }
 
 }

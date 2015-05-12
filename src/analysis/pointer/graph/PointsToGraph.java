@@ -29,6 +29,11 @@ import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
+import analysis.pointer.graph.strings.StringSolution;
+import analysis.pointer.graph.strings.StringSolutionDelta;
+import analysis.pointer.graph.strings.StringSolutionReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -1366,15 +1371,35 @@ public final class PointsToGraph implements PointsToIterable {
         return this.sc;
     }
 
-    public GraphDelta stringSolutionVariableReplicaJoinAt(StringSolutionVariable svr, AString shat) {
-        // Logger.println("[PointsToGraph] " + svr + " <- " + this.getAStringFor(svr) + " ⊔ " + shat);
-        return new GraphDelta(this, this.sc.joinAt(svr, shat));
+    public GraphDelta stringSolutionVariableReplicaJoinAt(StringSolutionReplica svr, AString shat) {
+        StringSolutionDelta d = new StringSolutionDelta(this.sc);
+        for (StringLikeLocationReplica location : svr.getStringLocations()) {
+            d.combine(this.sc.joinAt(location, shat));
+        }
+        return new GraphDelta(this, d);
     }
 
-    public GraphDelta stringSolutionVariableReplicaUpperBounds(StringSolutionVariable svr1, StringSolutionVariable svr2) {
-        Logger.println("[PointsToGraph] " + this.getAStringFor(svr1) + " = " + svr1 + " ⊒ " + svr2 + " = "
-                + this.getAStringFor(svr2));
-        return new GraphDelta(this, this.sc.upperBounds(svr1, svr2));
+    public GraphDelta stringSolutionVariableReplicaJoinAt(StringLikeLocationReplica location, AString shat) {
+        return new GraphDelta(this, this.sc.joinAt(location, shat));
+    }
+
+    public GraphDelta stringSolutionVariableReplicaUpperBounds(StringSolutionReplica svr1, StringSolutionReplica svr2) {
+        StringSolutionDelta d = new StringSolutionDelta(this.sc);
+        for (StringLikeLocationReplica location1 : svr1.getStringLocations()) {
+            for (StringLikeLocationReplica location2 : svr2.getStringLocations()) {
+                Logger.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + svr1 + " ⊒ " + svr2 + " = "
+                        + this.getAStringFor(location2));
+                d.combine(this.sc.upperBounds(location1, location2));
+            }
+        }
+        return new GraphDelta(this, d);
+    }
+
+    public GraphDelta stringSolutionVariableReplicaUpperBounds(StringLikeLocationReplica location1,
+                                                               StringLikeLocationReplica location2) {
+        Logger.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + location1 + " ⊒ " + location2
+                + " = " + this.getAStringFor(location2));
+        return new GraphDelta(this, this.sc.upperBounds(location1, location2));
     }
 
     @Override
@@ -1387,33 +1412,64 @@ public final class PointsToGraph implements PointsToIterable {
         };
     }
 
-    @Override
-    public AString getAStringUpdatesFor(StringSolutionVariable x) {
+    public AString getAStringFor(StringLikeLocationReplica x) {
         return this.sc.getAStringFor(x);
     }
 
-    public AString getAStringFor(StringSolutionVariable x) {
-        return this.sc.getAStringFor(x);
+    public Set<AString> getAStringSetFor(StringLikeVariableReplica x) {
+        Set<AString> s = AnalysisUtil.createConcurrentSet();
+        for (StringLikeLocationReplica location : x.getStringLocations()) {
+            s.add(this.sc.getAStringFor(location));
+        }
+        return s;
     }
 
-    public void recordStringStatementUseDependency(StringSolutionVariable x, StmtAndContext s) {
-        this.sc.recordStringStatementUseDependency(x, s);
+    public void recordStringStatementUseDependency(StringSolutionReplica x, StmtAndContext s) {
+        for (StringLikeLocationReplica location : x.getStringLocations()) {
+            this.sc.recordStringStatementUseDependency(location, s);
+        }
+    }
+
+    public void recordStringStatementUseDependency(StringLikeLocationReplica location, StmtAndContext s) {
+        this.sc.recordStringStatementUseDependency(location, s);
     }
 
     //    public GraphDelta recordStringSolutionVariableDependency(StringSolutionVariable x, StringSolutionVariable y) {
     //        return new GraphDelta(this, this.sc.recordDependency(x, y));
     //    }
 
-    public void recordStringStatementDefineDependency(StringSolutionVariable x, StmtAndContext s) {
-        this.sc.recordStringStatementDefineDependency(x, s);
+    public void recordStringStatementDefineDependency(StringSolutionReplica x, StmtAndContext s) {
+        for (StringLikeLocationReplica location : x.getStringLocations()) {
+            this.sc.recordStringStatementDefineDependency(location, s);
+        }
     }
 
-    public GraphDelta activateStringSolutionVariable(StringSolutionVariable x) {
-        return new GraphDelta(this, this.sc.activate(x));
+    public void recordStringStatementDefineDependency(StringLikeLocationReplica location, StmtAndContext s) {
+        this.sc.recordStringStatementDefineDependency(location, s);
     }
 
-    public boolean stringSolutionVariableReplicaIsActive(StringSolutionVariable x) {
-        return this.sc.isActive(x);
+    public GraphDelta activateStringSolutionVariable(StringSolutionReplica x) {
+        StringSolutionDelta d = new StringSolutionDelta(this.sc);
+        for (StringLikeLocationReplica location : x.getStringLocations()) {
+            d.combine(this.sc.activate(location));
+        }
+        return new GraphDelta(this, d);
+    }
+
+    public GraphDelta activateStringSolutionVariable(StringLikeLocationReplica location) {
+        return new GraphDelta(this, this.sc.activate(location));
+    }
+
+    public boolean stringSolutionVariableReplicaIsActive(StringSolutionReplica x) {
+        boolean anyLocationIsActive = false;
+        for (StringLikeLocationReplica location : x.getStringLocations()) {
+            anyLocationIsActive |= this.sc.isActive(location);
+        }
+        return anyLocationIsActive;
+    }
+
+    public boolean stringSolutionVariableReplicaIsActive(StringLikeLocationReplica location) {
+        return this.sc.isActive(location);
     }
 
     public String getStringConstraintsStatistics() {
@@ -1455,8 +1511,11 @@ public final class PointsToGraph implements PointsToIterable {
         return minv;
     }
 
-    //    public void printSVRDependencyTree(StringSolutionVariable svr) {
-    //        this.sc.printSVRDependencyTree(svr);
-    //    }
+    public void printSVRDependencyTree(StringSolutionReplica svr) {
+        System.err.println("Dependencies of svr " + svr);
+        for (StringLikeLocationReplica location : svr.getStringLocations()) {
+            this.depRecorder.printStringDependencyTree(location);
+        }
+    }
 
 }

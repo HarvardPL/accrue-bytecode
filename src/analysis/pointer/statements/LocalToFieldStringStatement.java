@@ -8,10 +8,10 @@ import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -20,12 +20,12 @@ import com.ibm.wala.types.FieldReference;
 
 public class LocalToFieldStringStatement extends StringStatement {
 
-    private final StringVariable vUse;
-    private final StringVariable vDef;
+    private final StringLikeVariable vUse;
+    private final StringLikeVariable vDef;
     private final ReferenceVariable o;
     private final FieldReference f;
 
-    public LocalToFieldStringStatement(StringVariable vDef, StringVariable vUse, ReferenceVariable o, FieldReference f,
+    public LocalToFieldStringStatement(StringLikeVariable vDef, StringLikeVariable vUse, ReferenceVariable o, FieldReference f,
                                        IMethod method) {
         super(method);
         this.vUse = vUse;
@@ -37,7 +37,7 @@ public class LocalToFieldStringStatement extends StringStatement {
     @Override
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
         ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
-        StringVariableReplica vDefSVR = new StringVariableReplica(context, this.vDef);
+        StringLikeVariableReplica vDefSVR = new StringLikeVariableReplica(context, this.vDef);
 
         boolean writersAreActive = false;
 
@@ -54,7 +54,7 @@ public class LocalToFieldStringStatement extends StringStatement {
     protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
-        StringVariableReplica vUseSVR = new StringVariableReplica(context, this.vUse);
+        StringLikeVariableReplica vUseSVR = new StringLikeVariableReplica(context, this.vUse);
 
         g.recordStringStatementUseDependency(vUseSVR, originator);
     }
@@ -63,7 +63,7 @@ public class LocalToFieldStringStatement extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringVariableReplica vDefSVR = new StringVariableReplica(context, this.vDef);
+        StringLikeVariableReplica vDefSVR = new StringLikeVariableReplica(context, this.vDef);
         ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
 
         // XXX: Hack, we set the def to top to deal with string escape
@@ -79,7 +79,7 @@ public class LocalToFieldStringStatement extends StringStatement {
     @Override
     protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica vUseSVR = new StringVariableReplica(context, this.vUse);
+        StringLikeVariableReplica vUseSVR = new StringLikeVariableReplica(context, this.vUse);
 
         return g.activateStringSolutionVariable(vUseSVR);
     }
@@ -87,8 +87,8 @@ public class LocalToFieldStringStatement extends StringStatement {
     @Override
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica vUseSVR = new StringVariableReplica(context, this.vUse);
-        StringVariableReplica vDefSVR = new StringVariableReplica(context, this.vDef);
+        StringLikeVariableReplica vUseSVR = new StringLikeVariableReplica(context, this.vUse);
+        StringLikeVariableReplica vDefSVR = new StringLikeVariableReplica(context, this.vDef);
         ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
 
         GraphDelta newDelta = new GraphDelta(g);

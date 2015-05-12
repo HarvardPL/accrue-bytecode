@@ -1,23 +1,31 @@
 package analysis.pointer.registrar.strings;
 
+import java.util.Collections;
+import java.util.Set;
+
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.graph.strings.StringLocationReplica;
+
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
 
-public class MethodReturnStringVariable implements StringVariable {
+public class MethodReturnStringVariable implements StringLikeVariable {
     private final IMethod method;
     private final TypeReference type;
 
-    public static StringVariable makeString(IMethod method) {
+    public static StringLikeVariable make(IMethod method) {
         return new MethodReturnStringVariable(method, TypeReference.JavaLangString);
-    }
-
-    public static StringVariable makeStringBuilder(IMethod method) {
-        return new MethodReturnStringVariable(method, TypeReference.JavaLangStringBuilder);
     }
 
     private MethodReturnStringVariable(IMethod method, TypeReference type) {
         this.method = method;
         this.type = type;
+    }
+
+    @Override
+    public Set<StringLikeLocationReplica> getStringLocationReplicas(Context context) {
+        return Collections.<StringLikeLocationReplica> singleton(StringLocationReplica.make(context, this));
     }
 
     @Override
@@ -33,6 +41,21 @@ public class MethodReturnStringVariable implements StringVariable {
     @Override
     public String toString() {
         return "MethodReturnStringVariable [method=" + method + ", type=" + type + "]";
+    }
+
+    @Override
+    public boolean isStringBuilder() {
+        return false;
+    }
+
+    @Override
+    public boolean isString() {
+        return true;
+    }
+
+    @Override
+    public boolean isNull() {
+        return false;
     }
 
 }

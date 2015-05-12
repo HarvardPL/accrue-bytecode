@@ -13,9 +13,9 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
@@ -32,15 +32,15 @@ public class GetPropertyStatement extends StringStatement {
 
     private final CallSiteReference callSite;
     private final MethodReference declaredTarget;
-    private final StringVariable result;
-    private final List<StringVariable> arguments;
+    private final StringLikeVariable result;
+    private final List<StringLikeVariable> arguments;
 
     public static boolean isGetPropertyCall(SSAInvokeInstruction i) {
         return StringAndReflectiveUtil.isGetPropertyCall(i.getDeclaredTarget());
     }
 
     public GetPropertyStatement(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
-                                StringVariable result, List<StringVariable> arguments) {
+                                StringLikeVariable result, List<StringLikeVariable> arguments) {
         super(method);
 
         this.callSite = callSite;
@@ -57,22 +57,22 @@ public class GetPropertyStatement extends StringStatement {
 
     @Override
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
-        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.result));
+        return g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.result));
     }
 
     @Override
     protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
-        List<StringVariableReplica> argumentsvrs = new ArrayList<>();
-        for (StringVariable argument : this.arguments) {
-            argumentsvrs.add(new StringVariableReplica(context, argument));
+        List<StringLikeVariableReplica> argumentsvrs = new ArrayList<>();
+        for (StringLikeVariable argument : this.arguments) {
+            argumentsvrs.add(new StringLikeVariableReplica(context, argument));
         }
 
         switch (this.arguments.size()) {
         case 1:
         case 2: {
-            for (StringVariableReplica argument : argumentsvrs) {
+            for (StringLikeVariableReplica argument : argumentsvrs) {
                 g.recordStringStatementUseDependency(argument, originator);
             }
             break;
@@ -86,7 +86,7 @@ public class GetPropertyStatement extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringVariableReplica resultsvr = new StringVariableReplica(context, this.result);
+        StringLikeVariableReplica resultsvr = new StringLikeVariableReplica(context, this.result);
 
         switch (this.arguments.size()) {
         case 1:
@@ -102,9 +102,9 @@ public class GetPropertyStatement extends StringStatement {
     @Override
     protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
-        List<StringVariableReplica> argumentsvrs = new ArrayList<>();
-        for (StringVariable argument : this.arguments) {
-            argumentsvrs.add(new StringVariableReplica(context, argument));
+        List<StringLikeVariableReplica> argumentsvrs = new ArrayList<>();
+        for (StringLikeVariable argument : this.arguments) {
+            argumentsvrs.add(new StringLikeVariableReplica(context, argument));
         }
 
         GraphDelta changes = new GraphDelta(g);
@@ -112,7 +112,7 @@ public class GetPropertyStatement extends StringStatement {
         switch (this.arguments.size()) {
         case 1:
         case 2: {
-            for (StringVariableReplica argument : argumentsvrs) {
+            for (StringLikeVariableReplica argument : argumentsvrs) {
                 changes.combine(g.activateStringSolutionVariable(argument));
             }
             break;
@@ -127,10 +127,10 @@ public class GetPropertyStatement extends StringStatement {
     @Override
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica resultsvr = new StringVariableReplica(context, this.result);
-        List<StringVariableReplica> argumentsvrs = new ArrayList<>();
-        for (StringVariable argument : this.arguments) {
-            argumentsvrs.add(new StringVariableReplica(context, argument));
+        StringLikeVariableReplica resultsvr = new StringLikeVariableReplica(context, this.result);
+        List<StringLikeVariableReplica> argumentsvrs = new ArrayList<>();
+        for (StringLikeVariable argument : this.arguments) {
+            argumentsvrs.add(new StringLikeVariableReplica(context, argument));
         }
         GraphDelta newDelta = new GraphDelta(g);
 
@@ -141,7 +141,8 @@ public class GetPropertyStatement extends StringStatement {
             Logger.println("[GetPropertyStatement] _________________________");
             Logger.println("[GetPropertyStatement] me: " + this);
             Logger.println("[GetPropertyStatement] in method " + this.getMethod());
-            Logger.println("[GetPropertyStatement] I'm being called: " + g.getAStringFor(argumentsvrs.get(0)));
+            Logger.println("[GetPropertyStatement] I'm being called: " + g.getAStringSetFor(argumentsvrs.get(0)));
+
 
             // XXX: Hack for exploration of results
             AString shat = ((ReflectiveHAF) haf).getAStringSet(Collections.singleton("XXXX"));

@@ -11,9 +11,10 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -27,22 +28,22 @@ public class StringMethodCall extends StringStatement {
      * Which method was invoked?
      */
     private final MethodEnum invokedMethod;
-    private final StringVariable result;
+    private final StringLikeVariable result;
 
     /**
      * StringVariable representing the value of the receiver object before the method call
      */
-    private final StringVariable receiverUse;
+    private final StringLikeVariable receiverUse;
 
     /**
      * StringVariable representing the value of the receiver object after the method call
      */
-    private final StringVariable receiverDef;
+    private final StringLikeVariable receiverDef;
 
     /**
      * Arguments to the method call.
      */
-    private final List<StringVariable> arguments;
+    private final List<StringLikeVariable> arguments;
     private enum MethodEnum {
         sbAppendM, toStringM
     }
@@ -61,8 +62,8 @@ public class StringMethodCall extends StringStatement {
         }
     }
 
-    public StringMethodCall(IMethod method, MethodReference declaredTarget, StringVariable svresult,
-                            StringVariable svreceiverUse, StringVariable svreceiverDef, List<StringVariable> svarguments) {
+    public StringMethodCall(IMethod method, MethodReference declaredTarget, StringLikeVariable svresult,
+                            StringLikeVariable svreceiverUse, StringLikeVariable svreceiverDef, List<StringLikeVariable> svarguments) {
         super(method);
         this.invokedMethod = imethodToMethodEnum(AnalysisUtil.getClassHierarchy().resolveMethod(declaredTarget));
         this.result = svresult;
@@ -85,12 +86,12 @@ public class StringMethodCall extends StringStatement {
             //            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context,
             //                                                                                                  this.receiverDef));
 
-            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.result));
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.result));
             break;
         }
         case toStringM: {
 
-            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.result));
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.result));
 
             break;
         }
@@ -106,16 +107,16 @@ public class StringMethodCall extends StringStatement {
     protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
-        StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
+        StringLikeVariableReplica receiverUseSVR = new StringLikeVariableReplica(context, this.receiverUse);
 
         switch (this.invokedMethod) {
         case sbAppendM: {
             // the first argument is a copy of the "this" argument
             assert this.arguments.size() == 2 : this.arguments.size();
 
-            List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
-            for (StringVariable argument : this.arguments) {
-                argumentSVRs.add(new StringVariableReplica(context, argument));
+            List<StringLikeVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
+            for (StringLikeVariable argument : this.arguments) {
+                argumentSVRs.add(new StringLikeVariableReplica(context, argument));
             }
 
             g.recordStringStatementUseDependency(receiverUseSVR, originator);
@@ -146,7 +147,7 @@ public class StringMethodCall extends StringStatement {
             assert this.arguments.size() == 2 : this.arguments.size();
 
             //            StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
-            StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+            StringLikeVariableReplica resultSVR = new StringLikeVariableReplica(context, this.result);
 
             //            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
             g.recordStringStatementDefineDependency(resultSVR, originator);
@@ -154,7 +155,7 @@ public class StringMethodCall extends StringStatement {
             break;
         }
         case toStringM: {
-            StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+            StringLikeVariableReplica resultSVR = new StringLikeVariableReplica(context, this.result);
 
             g.recordStringStatementDefineDependency(resultSVR, originator);
 
@@ -170,10 +171,10 @@ public class StringMethodCall extends StringStatement {
     @Override
     protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                        PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
-        List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
-        for (StringVariable argument : this.arguments) {
-            argumentSVRs.add(new StringVariableReplica(context, argument));
+        StringLikeVariableReplica receiverUseSVR = new StringLikeVariableReplica(context, this.receiverUse);
+        List<StringLikeVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
+        for (StringLikeVariable argument : this.arguments) {
+            argumentSVRs.add(new StringLikeVariableReplica(context, argument));
         }
 
         GraphDelta changes = new GraphDelta(g);
@@ -204,33 +205,32 @@ public class StringMethodCall extends StringStatement {
     @Override
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
-        StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
-        StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
-        List<StringVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
-        for (StringVariable argument : this.arguments) {
-            argumentSVRs.add(new StringVariableReplica(context, argument));
+        StringLikeVariableReplica resultSVR = new StringLikeVariableReplica(context, this.result);
+        StringLikeVariableReplica receiverUseSVR = new StringLikeVariableReplica(context, this.receiverUse);
+        StringLikeVariableReplica receiverDefSVR = new StringLikeVariableReplica(context, this.receiverDef);
+        List<StringLikeVariableReplica> argumentSVRs = new ArrayList<>(this.arguments.size());
+        for (StringLikeVariable argument : this.arguments) {
+            argumentSVRs.add(new StringLikeVariableReplica(context, argument));
         }
 
         switch (this.invokedMethod) {
         case sbAppendM: {
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
+            GraphDelta changed = new GraphDelta(g);
 
-            AString receiverAString = g.getAStringFor(receiverUseSVR);
-            AString argumentAString = g.getAStringFor(argumentSVRs.get(1));
+            for (StringLikeLocationReplica receiverLocation : receiverUseSVR.getStringLocations()) {
+                for (StringLikeLocationReplica argumentLocation : argumentSVRs.get(1).getStringLocations()) {
 
-            AString concated = receiverAString.concat(argumentAString);
-            //            GraphDelta d = null;
-            //            if (g.stringSolutionVariableReplicaIsActive(receiverDefSVR)) {
-            //                d = g.stringSolutionVariableReplicaJoinAt(receiverDefSVR, concated);
-            //            }
-            //            if (g.stringSolutionVariableReplicaIsActive(resultSVR)) {
-            //                GraphDelta e = g.stringSolutionVariableReplicaJoinAt(resultSVR, concated);
-            //                d = d == null ? e : d.combine(e);
-            //            }
-            //            return d;
-            return g.stringSolutionVariableReplicaJoinAt(resultSVR, concated);
+                    AString receiverAString = g.getAStringFor(receiverLocation);
+                    AString argumentAString = g.getAStringFor(argumentLocation);
+
+                    AString concated = receiverAString.concat(argumentAString);
+
+                    changed.combine(g.stringSolutionVariableReplicaJoinAt(resultSVR, concated));
+                }
+            }
+            return changed;
         }
         case toStringM: {
             return g.stringSolutionVariableReplicaUpperBounds(resultSVR, receiverUseSVR);

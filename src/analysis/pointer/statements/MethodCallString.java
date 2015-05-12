@@ -6,8 +6,8 @@ import java.util.List;
 import util.OrderedPair;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.StringVariableReplica;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -31,22 +31,22 @@ public abstract class MethodCallString extends StringStatement {
      * @param originator
      * @return
      */
-    protected static GraphDelta processCall(StringVariable actualReturn,
-                                            StringVariable formalReturn,
-                                            List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
+    protected static GraphDelta processCall(StringLikeVariable actualReturn,
+                                            StringLikeVariable formalReturn,
+                                            List<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters,
                                             Context context, PointsToGraph g) {
-        List<OrderedPair<StringVariableReplica, StringVariableReplica>> stringArgumentAndParameterSVRs = new ArrayList<>();
+        List<OrderedPair<StringLikeVariableReplica, StringLikeVariableReplica>> stringArgumentAndParameterSVRs = new ArrayList<>();
 
-        for (OrderedPair<StringVariable, StringVariable> argumentAndParameter : stringArgumentAndParameters) {
-            StringVariableReplica svr1 = new StringVariableReplica(context, argumentAndParameter.fst());
-            StringVariableReplica svr2 = new StringVariableReplica(context, argumentAndParameter.snd());
-            OrderedPair<StringVariableReplica, StringVariableReplica> svrpair = new OrderedPair<>(svr1, svr2);
+        for (OrderedPair<StringLikeVariable, StringLikeVariable> argumentAndParameter : stringArgumentAndParameters) {
+            StringLikeVariableReplica svr1 = new StringLikeVariableReplica(context, argumentAndParameter.fst());
+            StringLikeVariableReplica svr2 = new StringLikeVariableReplica(context, argumentAndParameter.snd());
+            OrderedPair<StringLikeVariableReplica, StringLikeVariableReplica> svrpair = new OrderedPair<>(svr1, svr2);
             stringArgumentAndParameterSVRs.add(svrpair);
         }
 
         GraphDelta newDelta = new GraphDelta(g);
 
-        for (OrderedPair<StringVariableReplica, StringVariableReplica> pair : stringArgumentAndParameterSVRs) {
+        for (OrderedPair<StringLikeVariableReplica, StringLikeVariableReplica> pair : stringArgumentAndParameterSVRs) {
             if (g.stringSolutionVariableReplicaIsActive(pair.snd())) {
                 newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(pair.snd(), pair.fst()));
             }
@@ -54,8 +54,8 @@ public abstract class MethodCallString extends StringStatement {
 
         assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
         if (actualReturn != null) {
-            StringVariableReplica actualReturnSVR = new StringVariableReplica(context, actualReturn);
-            StringVariableReplica formalReturnSVR = new StringVariableReplica(context, formalReturn);
+            StringLikeVariableReplica actualReturnSVR = new StringLikeVariableReplica(context, actualReturn);
+            StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, formalReturn);
             if (g.stringSolutionVariableReplicaIsActive(actualReturnSVR)) {
                 newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(actualReturnSVR, formalReturnSVR));
             }

@@ -8,18 +8,18 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 public class StringInitStatement extends StringStatement {
 
-    private final StringVariable sv;
+    private final StringLikeVariable sv;
 
-    public StringInitStatement(IMethod method, StringVariable sv) {
+    public StringInitStatement(IMethod method, StringLikeVariable sv) {
         super(method);
         this.sv = sv;
     }
@@ -28,7 +28,7 @@ public class StringInitStatement extends StringStatement {
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
                                        StmtAndContext originator, HeapAbstractionFactory haf,
                                        StatementRegistrar registrar) {
-        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.sv));
+        return g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.sv));
     }
 
     @Override
@@ -42,7 +42,7 @@ public class StringInitStatement extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringVariableReplica svr = new StringVariableReplica(context, this.sv);
+        StringLikeVariableReplica svr = new StringLikeVariableReplica(context, this.sv);
 
         g.recordStringStatementDefineDependency(svr, originator);
     }
@@ -57,7 +57,7 @@ public class StringInitStatement extends StringStatement {
     @Override
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica svr = new StringVariableReplica(context, this.sv);
+        StringLikeVariableReplica svr = new StringLikeVariableReplica(context, this.sv);
 
         GraphDelta newDelta = new GraphDelta(g);
 

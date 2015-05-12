@@ -9,11 +9,11 @@ import java.util.Set;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
-import analysis.pointer.registrar.FlowSensitiveStringVariableFactory;
+import analysis.pointer.registrar.FlowSensitiveStringLikeVariableFactory;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -574,7 +574,7 @@ public class StatementFactory {
         return s;
     }
 
-    public StringStatement localToLocalString(StringVariable left, StringVariable right, IMethod method,
+    public StringStatement localToLocalString(StringLikeVariable left, StringLikeVariable right, IMethod method,
                                               SSAInstruction i) {
         assert left != null;
         assert right != null;
@@ -586,7 +586,7 @@ public class StatementFactory {
         return new LocalToLocalString(left, right, method);
     }
 
-    public StringStatement fieldToLocalString(StringVariable svv, ReferenceVariable o, FieldReference f, IMethod method) {
+    public StringStatement fieldToLocalString(StringLikeVariable svv, ReferenceVariable o, FieldReference f, IMethod method) {
         assert svv != null;
         assert o != null;
         assert f != null;
@@ -597,7 +597,7 @@ public class StatementFactory {
         return new FieldToLocalStringStatement(svv, o, f, method);
     }
 
-    public StringStatement staticFieldToLocalString(StringVariable svv, StringVariable svf, String classname,
+    public StringStatement staticFieldToLocalString(StringLikeVariable svv, StringLikeVariable svf, String classname,
                                                     IMethod method) {
         assert svv != null;
         assert svf != null;
@@ -609,7 +609,7 @@ public class StatementFactory {
         return new StaticFieldToLocalStringStatement(svv, svf, classname, method);
     }
 
-    public StringStatement newString(StringVariable result, IMethod method) {
+    public StringStatement newString(StringLikeVariable result, IMethod method) {
         assert result != null;
 
         assert stringStatementNeverCreatedBefore(new StatementKey(result, method));
@@ -618,9 +618,9 @@ public class StatementFactory {
     }
 
     public StringStatement stringMethodCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
-                                            StringVariable svresult, StringVariable svreceiverUse,
-                                            StringVariable svreceiverDef, List<StringVariable> svarguments,
-                                            FlowSensitiveStringVariableFactory stringVariableFactory) {
+                                            StringLikeVariable svresult, StringLikeVariable svreceiverUse,
+                                            StringLikeVariable svreceiverDef, List<StringLikeVariable> svarguments,
+                                            FlowSensitiveStringLikeVariableFactory stringVariableFactory) {
         assert callSite != null;
         assert method != null;
         assert declaredTarget != null;
@@ -628,7 +628,7 @@ public class StatementFactory {
         assert svreceiverUse != null;
         assert svreceiverDef != null;
         assert svarguments != null;
-        for (StringVariable svargument : svarguments) {
+        for (StringLikeVariable svargument : svarguments) {
             assert svargument != null;
         }
         assert stringVariableFactory != null;
@@ -649,7 +649,7 @@ public class StatementFactory {
                                     svarguments);
     }
 
-    public StringStatement phiToLocalString(StringVariable svassignee, List<StringVariable> svuses, IMethod method,
+    public StringStatement phiToLocalString(StringLikeVariable svassignee, List<StringLikeVariable> svuses, IMethod method,
                                             PrettyPrinter pp) {
         assert svassignee != null;
         assert svuses != null;
@@ -660,7 +660,7 @@ public class StatementFactory {
         return new PhiToLocalStringStatement(svassignee, svuses, method);
     }
 
-    public StringStatement localToFieldString(StringVariable svvDef, StringVariable svvUse, ReferenceVariable o,
+    public StringStatement localToFieldString(StringLikeVariable svvDef, StringLikeVariable svvUse, ReferenceVariable o,
                                               FieldReference f, IMethod method, SSAInstruction i) {
         assert svvDef != null;
         assert svvUse != null;
@@ -674,19 +674,17 @@ public class StatementFactory {
         return new LocalToFieldStringStatement(svvDef, svvUse, o, f, method);
     }
 
-    public StringStatement localToStaticFieldString(StringVariable svf, StringVariable svvuse, StringVariable svvdef,
-                                                    IMethod method) {
+    public StringStatement localToStaticFieldString(StringLikeVariable svf, StringLikeVariable svvuse, IMethod method) {
         assert svf != null;
         assert svvuse != null;
-        assert svvdef != null;
         assert method != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(svf, svvuse, svvdef, method));
+        assert stringStatementNeverCreatedBefore(new StatementKey(svf, svvuse, method));
 
-        return new LocalToStaticFieldStringStatement(svf, svvuse, svvdef, method);
+        return new LocalToStaticFieldStringStatement(svf, svvuse, method);
     }
 
-    public StringStatement stringInit0(CallSiteReference callSite, IMethod method, StringVariable sv) {
+    public StringStatement stringInit0(CallSiteReference callSite, IMethod method, StringLikeVariable sv) {
         assert callSite != null;
         assert method != null;
         assert sv != null;
@@ -696,11 +694,11 @@ public class StatementFactory {
         return new StringInitStatement(method, sv);
     }
 
-    public StringStatement stringPhiNode(IMethod method, StringVariable sv, Set<StringVariable> dependentSVs) {
+    public StringStatement stringPhiNode(IMethod method, StringLikeVariable sv, Set<StringLikeVariable> dependentSVs) {
         assert method != null;
         assert sv != null;
         assert dependentSVs != null;
-        for (StringVariable dsv : dependentSVs) {
+        for (StringLikeVariable dsv : dependentSVs) {
             assert dsv != null;
         }
 
@@ -710,7 +708,7 @@ public class StatementFactory {
     }
 
     public StringStatement getPropertyCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
-                                           StringVariable svresult, List<StringVariable> svarguments) {
+                                           StringLikeVariable svresult, List<StringLikeVariable> svarguments) {
         assert callSite != null;
         assert method != null;
         assert declaredTarget != null;
@@ -728,14 +726,14 @@ public class StatementFactory {
 
     public StringStatement staticOrSpecialMethodCallString(SSAInstruction i,
                                                            IMethod method,
-                                                           List<OrderedPair<StringVariable, StringVariable>> stringArgumentAndParameters,
-                                                           StringVariable formalReturn, StringVariable actualReturn,
+                                                           List<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters,
+                                                           StringLikeVariable formalReturn, StringLikeVariable actualReturn,
                                                            IMethod targetMethod) {
         assert i != null;
         /* NB: both returnedVariable and returnToVariable could be null. Nullness */
         /* indicates the return value is either ignored or not String-like */
         assert stringArgumentAndParameters != null;
-        for (OrderedPair<StringVariable, StringVariable> pair : stringArgumentAndParameters) {
+        for (OrderedPair<StringLikeVariable, StringLikeVariable> pair : stringArgumentAndParameters) {
             assert pair != null;
             assert pair.fst() != null;
             assert pair.snd() != null;
@@ -755,13 +753,13 @@ public class StatementFactory {
     }
 
     public StringStatement virtualMethodCallString(IMethod method,
-                                                   ArrayList<OrderedPair<StringVariable, Integer>> stringArgumentAndParameters,
-                                                   StringVariable returnToVariable, MethodReference declaredTarget,
+                                                   ArrayList<OrderedPair<StringLikeVariable, Integer>> stringArgumentAndParameters,
+                                                   StringLikeVariable returnToVariable, MethodReference declaredTarget,
                                                    ReferenceVariable receiver, ReferenceVariable exception) {
         /* NB: returnToVariable could be null. Nullness indicates the return */
         /* value is either ignored or not String-like */
         assert stringArgumentAndParameters != null;
-        for (OrderedPair<StringVariable, Integer> pair : stringArgumentAndParameters) {
+        for (OrderedPair<StringLikeVariable, Integer> pair : stringArgumentAndParameters) {
             assert pair != null;
             assert pair.fst() != null;
             assert pair.snd() != null;
@@ -784,7 +782,7 @@ public class StatementFactory {
     }
 
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
-                                         ReferenceVariable result, List<StringVariable> actuals) {
+                                         ReferenceVariable result, List<StringLikeVariable> actuals) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;

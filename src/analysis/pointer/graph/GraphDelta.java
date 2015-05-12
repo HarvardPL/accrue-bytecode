@@ -6,9 +6,9 @@ import java.util.Iterator;
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import util.intset.IntSetUnion;
-import analysis.pointer.analyses.AString;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
+import analysis.pointer.graph.strings.StringSolutionDelta;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
@@ -181,11 +181,6 @@ public final class GraphDelta implements PointsToIterable {
                 return pointsToIterator(node);
             }
         };
-    }
-
-    @Override
-    public AString getAStringUpdatesFor(StringSolutionVariable svr) {
-        return this.scd.getAStringFor(svr);
     }
 
     //    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {

@@ -1,31 +1,37 @@
 package analysis.pointer.registrar.strings;
 
+import java.util.Collections;
+import java.util.Set;
+
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.graph.strings.StringLocationReplica;
+
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
 
-public class NativeParameterStringVariable implements StringVariable {
+public class NativeParameterStringVariable implements StringLikeVariable {
 
     private final IMethod method;
     private final int parameterNum;
-    private final TypeReference klass;
 
-    public static StringVariable makeString(IMethod method, int i) {
-        return new NativeParameterStringVariable(method, i, TypeReference.JavaLangString);
+    public static StringLikeVariable make(IMethod method, int i) {
+        return new NativeParameterStringVariable(method, i);
     }
 
-    public static StringVariable makeStringBuilder(IMethod method, int i) {
-        return new NativeParameterStringVariable(method, i, TypeReference.JavaLangStringBuilder);
-    }
-
-    private NativeParameterStringVariable(IMethod method, int i, TypeReference klass) {
+    private NativeParameterStringVariable(IMethod method, int i) {
         this.method = method;
         this.parameterNum = i;
-        this.klass = klass;
+    }
+
+    @Override
+    public Set<StringLikeLocationReplica> getStringLocationReplicas(Context context) {
+        return Collections.<StringLikeLocationReplica> singleton(StringLocationReplica.make(context, this));
     }
 
     @Override
     public TypeReference getExpectedType() {
-        return this.klass;
+        return TypeReference.JavaLangString;
     }
 
     @Override
@@ -34,16 +40,24 @@ public class NativeParameterStringVariable implements StringVariable {
     }
 
     @Override
-    public String toString() {
-        return "NativeParameterStringVariable [method=" + method + ", parameterNum=" + parameterNum + ", klass="
-                + klass + "]";
+    public boolean isStringBuilder() {
+        return false;
+    }
+
+    @Override
+    public boolean isString() {
+        return true;
+    }
+
+    @Override
+    public boolean isNull() {
+        return false;
     }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + ((klass == null) ? 0 : klass.hashCode());
         result = prime * result + ((method == null) ? 0 : method.hashCode());
         result = prime * result + parameterNum;
         return result;
@@ -61,14 +75,6 @@ public class NativeParameterStringVariable implements StringVariable {
             return false;
         }
         NativeParameterStringVariable other = (NativeParameterStringVariable) obj;
-        if (klass == null) {
-            if (other.klass != null) {
-                return false;
-            }
-        }
-        else if (!klass.equals(other.klass)) {
-            return false;
-        }
         if (method == null) {
             if (other.method != null) {
                 return false;
@@ -81,6 +87,11 @@ public class NativeParameterStringVariable implements StringVariable {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return "NativeParameterStringVariable [method=" + method + ", parameterNum=" + parameterNum + "]";
     }
 
 }

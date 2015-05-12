@@ -5,19 +5,19 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 public class LocalToLocalString extends StringStatement {
 
-    private final StringVariable left;
-    private final StringVariable right;
+    private final StringLikeVariable left;
+    private final StringLikeVariable right;
 
-    public LocalToLocalString(StringVariable left, StringVariable right, IMethod method) {
+    public LocalToLocalString(StringLikeVariable left, StringLikeVariable right, IMethod method) {
         super(method);
         this.left = left;
         this.right = right;
@@ -25,14 +25,14 @@ public class LocalToLocalString extends StringStatement {
 
     @Override
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
-        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.left));
+        return g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.left));
     }
 
     @Override
     protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
-        StringVariableReplica rightsvr = new StringVariableReplica(context, this.right);
+        StringLikeVariableReplica rightsvr = new StringLikeVariableReplica(context, this.right);
 
         g.recordStringStatementUseDependency(rightsvr, originator);
     }
@@ -41,7 +41,7 @@ public class LocalToLocalString extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringVariableReplica leftsvr = new StringVariableReplica(context, this.left);
+        StringLikeVariableReplica leftsvr = new StringLikeVariableReplica(context, this.left);
 
         g.recordStringStatementDefineDependency(leftsvr, originator);
     }
@@ -49,7 +49,7 @@ public class LocalToLocalString extends StringStatement {
     @Override
     protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
-        StringVariableReplica rightsvr = new StringVariableReplica(context, this.right);
+        StringLikeVariableReplica rightsvr = new StringLikeVariableReplica(context, this.right);
 
         return g.activateStringSolutionVariable(rightsvr);
     }
@@ -57,8 +57,8 @@ public class LocalToLocalString extends StringStatement {
     @Override
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica leftR = new StringVariableReplica(context, this.left);
-        StringVariableReplica rightR = new StringVariableReplica(context, this.right);
+        StringLikeVariableReplica leftR = new StringLikeVariableReplica(context, this.left);
+        StringLikeVariableReplica rightR = new StringLikeVariableReplica(context, this.right);
 
         GraphDelta newDelta = new GraphDelta(g);
 

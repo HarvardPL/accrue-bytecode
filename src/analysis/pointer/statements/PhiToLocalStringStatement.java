@@ -7,19 +7,19 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToIterable;
-import analysis.pointer.graph.StringVariableReplica;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.strings.StringVariable;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 public class PhiToLocalStringStatement extends StringStatement {
 
-    private final StringVariable assignee;
-    private final List<StringVariable> uses;
+    private final StringLikeVariable assignee;
+    private final List<StringLikeVariable> uses;
 
-    public PhiToLocalStringStatement(StringVariable assignee, List<StringVariable> uses, IMethod method) {
+    public PhiToLocalStringStatement(StringLikeVariable assignee, List<StringLikeVariable> uses, IMethod method) {
         super(method);
         this.assignee = assignee;
         // XXX: This should actually be a set
@@ -30,15 +30,15 @@ public class PhiToLocalStringStatement extends StringStatement {
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
                                        StmtAndContext originator, HeapAbstractionFactory haf,
                                        StatementRegistrar registrar) {
-        return g.stringSolutionVariableReplicaIsActive(new StringVariableReplica(context, this.assignee));
+        return g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.assignee));
     }
 
     @Override
     protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
-        for (StringVariable use : uses) {
-            g.recordStringStatementUseDependency(new StringVariableReplica(context, use), originator);
+        for (StringLikeVariable use : uses) {
+            g.recordStringStatementUseDependency(new StringLikeVariableReplica(context, use), originator);
         }
     }
 
@@ -46,7 +46,7 @@ public class PhiToLocalStringStatement extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringVariableReplica assigneeSVR = new StringVariableReplica(context, this.assignee);
+        StringLikeVariableReplica assigneeSVR = new StringLikeVariableReplica(context, this.assignee);
 
         g.recordStringStatementDefineDependency(assigneeSVR, originator);
     }
@@ -56,8 +56,8 @@ public class PhiToLocalStringStatement extends StringStatement {
                                  StmtAndContext originator, StatementRegistrar registrar) {
         GraphDelta changes = new GraphDelta(g);
 
-        for (StringVariable use : uses) {
-            changes.combine(g.activateStringSolutionVariable(new StringVariableReplica(context, use)));
+        for (StringLikeVariable use : uses) {
+            changes.combine(g.activateStringSolutionVariable(new StringLikeVariableReplica(context, use)));
         }
 
         return changes;
@@ -66,12 +66,12 @@ public class PhiToLocalStringStatement extends StringStatement {
     @Override
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica assigneeSVR = new StringVariableReplica(context, this.assignee);
+        StringLikeVariableReplica assigneeSVR = new StringLikeVariableReplica(context, this.assignee);
 
         GraphDelta newDelta = new GraphDelta(g);
 
-        for(StringVariable use : uses) {
-            StringVariableReplica usesvr = new StringVariableReplica(context, use);
+        for(StringLikeVariable use : uses) {
+            StringLikeVariableReplica usesvr = new StringLikeVariableReplica(context, use);
             newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(assigneeSVR, usesvr));
         }
 

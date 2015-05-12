@@ -12,24 +12,24 @@ public class RWSATest {
         //            String quux = baz.concat("quux");
         //        }
         //
-                {
-                    String packageName = "test.instruction.";
-                    String className = "RWSATest";
+        //                {
+        //                    String packageName = "test.instruction.";
+        //                    String className = "RWSATest";
+        //
+        //            //String fullyQualifiedClassName = packageName + className;
+        //            Class.forName(packageName + className).newInstance();
+        //            //Object o = indirection(fullyQualifiedClassName);
+        //            //Object o2 = indirection("test.instruction.Foo");
+        //                }
 
-            //String fullyQualifiedClassName = packageName + className;
-            Class.forName(packageName + className).newInstance();
-            //Object o = indirection(fullyQualifiedClassName);
-            //Object o2 = indirection("test.instruction.Foo");
-                }
-
-    //        {
-    //            StringBuilder classNameBranchSB = new StringBuilder();
-    //
-    //            classNameBranchSB.append("java.");
-    //            classNameBranchSB.append("lang.");
-    //            classNameBranchSB.append("Security");
-    //            Object oBranch = Class.forName(classNameBranchSB.toString()).newInstance();
-    //        }
+        //        {
+        //            StringBuilder classNameBranchSB = new StringBuilder();
+        //
+        //            classNameBranchSB.append("java.");
+        //            classNameBranchSB.append("lang.");
+        //            classNameBranchSB.append("Security");
+        //            Object oBranch = Class.forName(classNameBranchSB.toString()).newInstance();
+        //        }
     //
     //        /*
     //         * same code but branching test

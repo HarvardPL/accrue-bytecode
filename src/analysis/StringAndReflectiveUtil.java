@@ -16,8 +16,8 @@ public class StringAndReflectiveUtil {
     public static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                               TypeName.string2TypeName("Ljava/lang/StringBuilder")));
 
-    private final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
-                                                                                                TypeName.string2TypeName("Ljava/lang/String"));
+    public final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                                               TypeName.string2TypeName("Ljava/lang/String"));
     private final static Atom concatAtom = Atom.findOrCreateUnicodeAtom("concat");
     private final static Descriptor concatDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
                                                                              "(Ljava/lang/String;)Ljava/lang/String;");
@@ -62,7 +62,7 @@ public class StringAndReflectiveUtil {
                                                                           "toString",
                                                                           "()Ljava/lang/String;");
     private static final IMethod stringInit0IMethod = getIMethod(JavaLangStringTypeReference,
-                                                                MethodReference.initSelector);
+                                                                 MethodReference.initSelector);
 
     private static final TypeReference JavaLangSystemTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                 TypeName.string2TypeName("Ljava/lang/System"));
@@ -131,16 +131,15 @@ public class StringAndReflectiveUtil {
         return isStringMutatingMethod(m) || im.equals(stringBuilderToStringIMethod) || im.equals(stringToStringIMethod);
     }
 
-    public static boolean isStringInitMethod(MethodReference m) {
-        IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
-        return isStringInit0Method(im) || isStringInit1Method(im);
-    }
-
     public static boolean isStringInit0Method(IMethod im) {
-        return im.equals(stringBuilderInit0IMethod) || im.equals(stringInit0IMethod);
+        return im.equals(stringInit0IMethod);
     }
 
-    public static boolean isStringInit1Method(IMethod im) {
+    public static boolean isStringBuilderInit0Method(IMethod im) {
+        return im.equals(stringBuilderInit0IMethod);
+    }
+
+    public static boolean isStringBuilderInit1Method(IMethod im) {
         return im.equals(stringBuilderInit1IMethod);
     }
 
@@ -156,12 +155,21 @@ public class StringAndReflectiveUtil {
     }
 
     public static boolean isStringBuilderType(TypeReference t) {
+        return trEqualsIClass(t, JavaLangStringBuilderIClass);
+
+    }
+
+    public static boolean isStringType(TypeReference t) {
+        return trEqualsIClass(t, JavaLangStringIClass);
+    }
+
+    public static boolean trEqualsIClass(TypeReference t, IClass ic) {
         if (t == null) {
             return false;
         }
         else {
             IClass iclass = typeReferenceToIClass(t);
-            return iclass != null && iclass.equals(JavaLangStringBuilderIClass);
+            return iclass != null && iclass.equals(ic);
         }
     }
 
@@ -169,6 +177,10 @@ public class StringAndReflectiveUtil {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
         return im.equals(stringBuilderAppendObjectIMethod) || im.equals(stringBuilderAppendStringBuilderIMethod)
                 || im.equals(stringBuilderAppendStringIMethod);
+    }
+
+    public static boolean isStringBuilderAppend(IMethod im) {
+        return im.equals(stringBuilderAppendStringBuilderIMethod) || im.equals(stringBuilderAppendStringIMethod);
     }
 
 }

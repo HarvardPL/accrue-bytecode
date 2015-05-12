@@ -4,38 +4,21 @@ import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 
 public class StringVariableFactory {
-    /* Factory Methods */
 
-    public static StringVariable makeLocalString(IMethod m, int varNum, int sensitizingSubscript) {
-        return LocalStringVariable.makeString(m, varNum, sensitizingSubscript);
+    public static StringLikeVariable makeLocalString(IMethod method, Integer varNum) {
+        return LocalStringVariable.make(method, varNum);
     }
 
-    public static StringVariable makeLocalStringBuilder(IMethod m, int varNum, int sensitizingSubscript) {
-        return LocalStringVariable.makeStringBuilder(m, varNum, sensitizingSubscript);
+    public static StringLikeVariable makeField(IField ifield) {
+        return FieldStringVariable.make(ifield);
     }
 
-    public static StringVariable makeLocalNull(IMethod method, int varNum, int sensitizingSubscript) {
-        return LocalStringVariable.makeNull(method, varNum, sensitizingSubscript);
+    public static StringLikeVariable makeMethodReturnString(IMethod method) {
+        return MethodReturnStringVariable.make(method);
     }
 
-    public static StringVariable makeMethodReturnString(IMethod m) {
-        return MethodReturnStringVariable.makeString(m);
-    }
-
-    public static StringVariable makeMethodReturnStringBuilder(IMethod m) {
-        return MethodReturnStringVariable.makeStringBuilder(m);
-    }
-
-    public static StringVariable makeField(IField f) {
-        return FieldStringVariable.make(f);
-    }
-
-    public static StringVariable makeNativeParameterString(IMethod method, int i) {
-        return NativeParameterStringVariable.makeString(method, i);
-    }
-
-    public static StringVariable makeNativeParameterStringBuilder(IMethod method, int i) {
-        return NativeParameterStringVariable.makeStringBuilder(method, i);
+    public static StringLikeVariable makeNativeParameterString(IMethod method, int i) {
+        return NativeParameterStringVariable.make(method, i);
     }
 
 }

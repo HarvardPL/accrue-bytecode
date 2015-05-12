@@ -1,9 +1,16 @@
 package analysis.pointer.registrar.strings;
 
+import java.util.Collections;
+import java.util.Set;
+
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.graph.strings.StringLocationReplica;
+
 import com.ibm.wala.classLoader.IField;
+import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
 
-public class FieldStringVariable implements StringVariable {
+public class FieldStringVariable implements StringLikeVariable {
 
     private final IField f;
 
@@ -22,6 +29,11 @@ public class FieldStringVariable implements StringVariable {
     /* Logic */
 
     @Override
+    public Set<StringLikeLocationReplica> getStringLocationReplicas(Context context) {
+        return Collections.<StringLikeLocationReplica> singleton(StringLocationReplica.make(context, this));
+    }
+
+    @Override
     public TypeReference getExpectedType() {
         // XXX: Unimplemented
         throw new RuntimeException("unimplemented");
@@ -30,6 +42,21 @@ public class FieldStringVariable implements StringVariable {
     @Override
     public boolean isSingleton() {
         return true;
+    }
+
+    @Override
+    public boolean isStringBuilder() {
+        return false;
+    }
+
+    @Override
+    public boolean isString() {
+        return true;
+    }
+
+    @Override
+    public boolean isNull() {
+        return false;
     }
 
     /*

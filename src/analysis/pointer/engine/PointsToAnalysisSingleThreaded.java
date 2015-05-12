@@ -21,7 +21,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.StringSolutionVariable;
+import analysis.pointer.graph.strings.StringLikeLocationReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -230,13 +230,18 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void recordRead(StringSolutionVariable v, StmtAndContext sac) {
+            public void recordRead(StringLikeLocationReplica v, StmtAndContext sac) {
                 stringDependencies.recordRead(v, sac);
             }
 
             @Override
-            public void recordWrite(StringSolutionVariable v, StmtAndContext sac) {
+            public void recordWrite(StringLikeLocationReplica v, StmtAndContext sac) {
                 stringDependencies.recordWrite(v, sac);
+            }
+
+            @Override
+            public void printStringDependencyTree(StringLikeLocationReplica v) {
+                stringDependencies.printStringDependencyTree(v, "  ");
             }
         };
 
@@ -442,7 +447,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         Set<StmtAndContext> reprocess = new LinkedHashSet<>();
-        for (StringSolutionVariable v : changes.getStringConstraintDelta().getNewlyActivated()) {
+        for (StringLikeLocationReplica v : changes.getStringConstraintDelta().getNewlyActivated()) {
             reprocess.addAll(stringDependencies.getWriteTo(v));
         }
         for (StmtAndContext depSaC : reprocess) {
@@ -451,7 +456,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             queue.add(new OrderedPair<>(depSaC, (GraphDelta) null));
         }
         Set<StmtAndContext> moreReprocess = new LinkedHashSet<>();
-        for (StringSolutionVariable v : changes.getStringConstraintDelta().getUpdated()) {
+        for (StringLikeLocationReplica v : changes.getStringConstraintDelta().getUpdated()) {
             moreReprocess.addAll(stringDependencies.getReadFrom(v));
         }
         // now process them...
