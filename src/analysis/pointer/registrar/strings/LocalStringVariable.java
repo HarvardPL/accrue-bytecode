@@ -91,7 +91,8 @@ public class LocalStringVariable implements StringLikeVariable {
 
     @Override
     public String toString() {
-        return "LocalStringVariable [method=" + method + ", varNum=" + varNum + "]";
+        return "LSV [method=" + method.getDeclaringClass().getName().getClassName() + "." + method.getName()
+                + ", varNum=" + varNum + "]";
     }
 
 }

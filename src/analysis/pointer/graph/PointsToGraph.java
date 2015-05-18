@@ -1372,9 +1372,14 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     public GraphDelta stringSolutionVariableReplicaJoinAt(StringSolutionReplica svr, AString shat) {
+        // we duplicate the check from StringSolution here because it's ok to joinat
+        // an svr that is active, even if some of its individual locations are not active
+        assert stringSolutionVariableReplicaIsActive(svr) : svr;
         StringSolutionDelta d = new StringSolutionDelta(this.sc);
         for (StringLikeLocationReplica location : svr.getStringLocations()) {
-            d.combine(this.sc.joinAt(location, shat));
+            if (stringSolutionVariableReplicaIsActive(location)) {
+                d.combine(this.sc.joinAt(location, shat));
+            }
         }
         return new GraphDelta(this, d);
     }
@@ -1516,6 +1521,10 @@ public final class PointsToGraph implements PointsToIterable {
         for (StringLikeLocationReplica location : svr.getStringLocations()) {
             this.depRecorder.printStringDependencyTree(location);
         }
+    }
+
+    public void printStringConstraints() {
+        this.sc.printStringConstraints();
     }
 
 }

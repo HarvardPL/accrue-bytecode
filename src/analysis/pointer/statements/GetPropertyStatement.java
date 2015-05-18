@@ -1,14 +1,13 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-import util.Logger;
 import analysis.StringAndReflectiveUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
+import analysis.pointer.analyses.StringOrProperty;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -137,20 +136,22 @@ public class GetPropertyStatement extends StringStatement {
         switch (this.arguments.size()) {
         case 1:
         case 2: {
-            Logger.push(true);
-            Logger.println("[GetPropertyStatement] _________________________");
-            Logger.println("[GetPropertyStatement] me: " + this);
-            Logger.println("[GetPropertyStatement] in method " + this.getMethod());
-            Logger.println("[GetPropertyStatement] I'm being called: " + g.getAStringSetFor(argumentsvrs.get(0)));
+            // Logger.push(true);
+            debugln("[GetPropertyStatement] _________________________");
+            debugln("[GetPropertyStatement] me: " + this);
+            debugln("[GetPropertyStatement] in method " + this.getMethod());
+            debugln("[GetPropertyStatement] I'm being called: " + g.getAStringSetFor(argumentsvrs.get(0)));
 
+            for (AString namehat : g.getAStringSetFor(argumentsvrs.get(0))) {
+                for (StringOrProperty s : namehat.getStrings()) {
+                    AString shat = ((ReflectiveHAF) haf).getAStringProperty(s);
 
-            // XXX: Hack for exploration of results
-            AString shat = ((ReflectiveHAF) haf).getAStringSet(Collections.singleton("XXXX"));
+                    debugln("[GetPropertyStatement] adding: " + shat);
 
-            Logger.println("[GetPropertyStatement] adding: " + shat);
-            Logger.pop();
-
-            newDelta.combine(g.stringSolutionVariableReplicaJoinAt(resultsvr, shat));
+                    newDelta.combine(g.stringSolutionVariableReplicaJoinAt(resultsvr, shat));
+                }
+            }
+            // Logger.pop();
             break;
         }
         default:
@@ -158,6 +159,10 @@ public class GetPropertyStatement extends StringStatement {
         }
 
         return newDelta;
+    }
+
+    private static void debugln(String s) {
+        System.err.println("[" + Thread.currentThread().getId() + "]" + s);
     }
 
     @Override

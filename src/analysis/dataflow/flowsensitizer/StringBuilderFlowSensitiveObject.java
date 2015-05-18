@@ -19,7 +19,8 @@ public class StringBuilderFlowSensitiveObject {
 
     @Override
     public String toString() {
-        return "StringBuilderFlowSensitiveObject [method=" + method + ", defTime=" + defTime + ", time=" + time + "]";
+        return "SBFSO [method=" + method.getDeclaringClass().getName().getClassName() + "."
+                + method.getName() + ", defTime=" + defTime + ", time=" + time + "]";
     }
 
     @Override

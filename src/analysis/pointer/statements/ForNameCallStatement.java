@@ -6,12 +6,12 @@ import java.util.List;
 import java.util.Set;
 
 import util.FiniteSet;
-import util.Logger;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
+import analysis.pointer.analyses.StringOrProperty;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -29,7 +29,6 @@ import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
-import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
@@ -71,10 +70,10 @@ public class ForNameCallStatement extends PointsToStatement {
         GraphDelta changed = new GraphDelta(g);
 
         g.recordStringStatementUseDependency(nameSVR, originator);
-        Logger.push(true);
-        Logger.println("[ForNameCallStatement] ___________________________");
-        Logger.println("[ForNameCallStatement] in method: " + this.getMethod());
-        Logger.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
+        // Logger.push(true);
+        debugln("[ForNameCallStatement] ___________________________");
+        debugln("[ForNameCallStatement] in method: " + this.getMethod());
+        debugln("[ForNameCallStatement] recording a dependency on " + nameSVR);
         //g.printSVRDependencyTree(nameSVR);
 
         changed.combine(g.activateStringSolutionVariable(nameSVR));
@@ -84,7 +83,7 @@ public class ForNameCallStatement extends PointsToStatement {
         for (StringLikeLocationReplica nameLocation : nameSVR.getStringLocations()) {
             AString namehat = g.getAStringFor(nameLocation);
 
-            Logger.println("[ForNameCallStatement] reaching class names are " + namehat);
+            debugln("[ForNameCallStatement] reaching class names are " + namehat);
 
             AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, null, // XXX: I'm duplicating existing forName calls
                                                                      false);
@@ -97,8 +96,8 @@ public class ForNameCallStatement extends PointsToStatement {
             }
             else {
                 Set<IClass> classSet = new HashSet<>();
-                for (String string : namehat.getStrings()) {
-                    Optional<IClass> maybeIClass = stringToIClass(string);
+                for (StringOrProperty sop : namehat.getStrings()) {
+                    Optional<IClass> maybeIClass = sop.toIClass();
                     if (maybeIClass.isSome()) {
                         classSet.add(maybeIClass.get());
                     }
@@ -106,24 +105,15 @@ public class ForNameCallStatement extends PointsToStatement {
                 classes = ((ReflectiveHAF) haf).getAClassSet(classSet);
             }
 
-            Logger.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
+            debugln("[ForNameCallStatement] Reflective allocation: classes: " + classes);
             changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
-            Logger.pop();
+            // Logger.pop();
         }
         return changed;
     }
 
-    private static Optional<IClass> stringToIClass(String string) {
-        IClass result = AnalysisUtil.getClassHierarchy()
-                                    .lookupClass(TypeReference.findOrCreate(ClassLoaderReference.Application, "L"
-                                            + string.replace(".", "/")));
-        if (result == null) {
-            Logger.println("[ForNameCallStatement] Could not find class for: " + string);
-            return Optional.none();
-        }
-        else {
-            return Optional.some(result);
-        }
+    private static void debugln(String s) {
+        System.err.println("[" + Thread.currentThread().getId() + "]" + s);
     }
 
     @Override

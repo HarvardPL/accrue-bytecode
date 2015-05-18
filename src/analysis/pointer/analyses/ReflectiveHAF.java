@@ -69,6 +69,15 @@ public class ReflectiveHAF extends HeapAbstractionFactory {
         return AString.makeStringSet(this.MAX_STRING_SET_SIZE, strings);
     }
 
+    public AString getAStringFromFiniteStringSet(FiniteSet<String> strings) {
+        assert this.MAX_STRING_SET_SIZE == strings.getMaxSize();
+        return AString.makeFromFiniteSet(strings);
+    }
+
+    public AString getAStringProperty(StringOrProperty name) {
+        return AString.makeProperty(this.MAX_STRING_SET_SIZE, name);
+    }
+
     @Override
     public Context initialContext() {
         return this.wrappedHAF.initialContext();

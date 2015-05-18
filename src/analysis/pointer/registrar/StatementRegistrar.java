@@ -616,7 +616,8 @@ public class StatementRegistrar {
         if (StringAndReflectiveUtil.isStringBuilderType(valueType)) {
             // it escaped
         }
-        else if (StringAndReflectiveUtil.isStringLikeType(valueType)) {
+        else if (StringAndReflectiveUtil.isStringLikeType(valueType)
+                && StringAndReflectiveUtil.isStringLikeType(i.getDeclaredFieldType())) {
             StringLikeVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
             StringLikeVariable svvuse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
             this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svvuse, ir.getMethod()));
@@ -794,6 +795,10 @@ public class StatementRegistrar {
                                                                      svreceiverDef,
                                                                      svarguments,
                                                                      stringVariableFactory));
+            }
+            else if (StringAndReflectiveUtil.isGetNameMethod(i.getDeclaredTarget())) {
+                StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
+                this.addStringStatement(stmtFactory.getNameCall(ir.getMethod(), receiver, svresult));
             }
             else {
                 this.createVirtualMethodCallString(i, ir, stringVariableFactory, receiver, exception);

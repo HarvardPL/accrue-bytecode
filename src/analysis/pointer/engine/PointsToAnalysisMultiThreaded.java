@@ -258,7 +258,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         ConstraintStatement s = sac.stmt;
         Context c = sac.context;
 
-        Logger.push(true /*s.getMethod().toString().contains("main")*/);
+        Logger.push(false);
         GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
         Logger.pop();
 
@@ -275,10 +275,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         // first gather up all the string statements that need to be processed.
         Set<StmtAndContext> reprocess = new HashSet<>();
-        for (StringLikeLocationReplica v : delta.getStringConstraintDelta().getNewlyActivated()) {
+        for (StringLikeLocationReplica v : changes.getStringConstraintDelta().getNewlyActivated()) {
             reprocess.addAll(stringDependencies.getWriteTo(v));
         }
-        for (StringLikeLocationReplica v : delta.getStringConstraintDelta().getUpdated()) {
+        for (StringLikeLocationReplica v : changes.getStringConstraintDelta().getUpdated()) {
             reprocess.addAll(stringDependencies.getReadFrom(v));
         }
         // now process them...

@@ -80,9 +80,12 @@ public class StringAndReflectiveUtil {
     public static final IMethod stringToStringIMethod = getIMethod(JavaLangStringTypeReference,
                                                                    "toString",
                                                                    "()Ljava/lang/String;");
-    private static final Object stringValueOfIMethod = getIMethod(JavaLangStringTypeReference,
-                                                                  "valueOf",
-                                                                  "(Ljava/lang/Object;)Ljava/lang/String;");
+    private static final IMethod stringValueOfIMethod = getIMethod(JavaLangStringTypeReference,
+                                                                   "valueOf",
+                                                                   "(Ljava/lang/Object;)Ljava/lang/String;");
+    private static final IMethod classGetNameIMethod = getIMethod(TypeReference.JavaLangClass,
+                                                                  "getName",
+                                                                  "()Ljava/lang/String;");
 
     public static IMethod methodReferenceToIMethod(MethodReference m) {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
@@ -183,4 +186,8 @@ public class StringAndReflectiveUtil {
         return im.equals(stringBuilderAppendStringBuilderIMethod) || im.equals(stringBuilderAppendStringIMethod);
     }
 
+    public static boolean isGetNameMethod(MethodReference m) {
+        IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
+        return im.equals(classGetNameIMethod);
+    }
 }

@@ -1,11 +1,11 @@
 package analysis.pointer.analyses;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
 import util.FiniteSet;
-import util.optional.Optional;
 
 import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -14,25 +14,66 @@ import com.ibm.wala.util.collections.Pair;
 import com.ibm.wala.util.functions.Function;
 
 public final class AString {
-    private FiniteSet<String> fs;
+    private FiniteSet<StringOrProperty> fs;
 
     public static AString makeStringTop(int maxSize) {
-        return new AString(FiniteSet.<String> getTop());
+        return new AString(FiniteSet.<StringOrProperty> getTop());
     }
 
     public static AString makeStringBottom(int maxSize) {
-        return new AString(FiniteSet.<String> makeBottom(maxSize));
+        return new AString(FiniteSet.<StringOrProperty> makeBottom(maxSize));
+    }
+
+    public static AString makeProperty(int maxSize, StringOrProperty property) {
+        Collection<StringOrProperty> c = new HashSet<>();
+        c.add(property);
+        return makePropertySet(maxSize, c);
+    }
+
+    public static AString makeString(int maxSize, String property) {
+        Collection<String> c = new HashSet<>();
+        c.add(property);
+        return makeStringSet(maxSize, c);
     }
 
     public static AString makeStringSet(int maxSize, Collection<String> c) {
+        return new AString(FiniteSet.makeFiniteSet(maxSize, mapStringInject(c)));
+    }
+
+    public static AString makeFromFiniteSet(FiniteSet<String> strings) {
+        return new AString(strings.map(new Function<String, StringOrProperty>() {
+            @Override
+            public StringOrProperty apply(String s) {
+                return SOPString.make(s);
+            }
+        }));
+    }
+
+    public static AString makePropertySet(int maxSize, Collection<StringOrProperty> c) {
+        return new AString(FiniteSet.makeFiniteSet(maxSize, mapPropertyInject(c)));
+    }
+
+    private static Collection<StringOrProperty> mapPropertyInject(Collection<StringOrProperty> c) {
+        Collection<StringOrProperty> c2 = new HashSet<>();
+        for (StringOrProperty s : c) {
+            c2.add(SOPProperty.make(s));
+        }
+        return c2;
+    }
+
+    private static Collection<StringOrProperty> mapStringInject(Collection<String> c) {
+        Collection<StringOrProperty> c2 = new HashSet<>();
+        for (String s : c) {
+            c2.add(SOPString.make(s));
+        }
+        return c2;
+    }
+
+    public static AString makeStringOrPropertySet(int maxSize, Collection<StringOrProperty> c) {
         return new AString(FiniteSet.makeFiniteSet(maxSize, c));
     }
 
-    public static AString makeString(int maxSize, Optional<? extends Collection<String>> c) {
-        return new AString(FiniteSet.make(maxSize, c));
-    }
-
-    private AString(FiniteSet<String> fs) {
+    private AString(FiniteSet<StringOrProperty> fs) {
         this.fs = fs;
     }
 
@@ -50,11 +91,11 @@ public final class AString {
      *
      * @return the set of strings represented by this AString
      */
-    public Set<String> getStrings() {
+    public Set<StringOrProperty> getStrings() {
         return this.fs.getSet();
     }
 
-    public FiniteSet<String> getFiniteStringSet() {
+    public FiniteSet<StringOrProperty> getFiniteStringSet() {
         return this.fs;
     }
 
@@ -76,12 +117,12 @@ public final class AString {
 
     public AString concat(final AString that) {
         // str1 -> that.fs.map(str2 -> str1.concat(str2))
-        final Function<String, FiniteSet<String>> fOuter = new Function<String, FiniteSet<String>>() {
+        final Function<StringOrProperty, FiniteSet<StringOrProperty>> fOuter = new Function<StringOrProperty, FiniteSet<StringOrProperty>>() {
             @Override
-            public FiniteSet<String> apply(final String str1) {
-                final Function<String, String> fInner = new Function<String, String>() {
+            public FiniteSet<StringOrProperty> apply(final StringOrProperty str1) {
+                final Function<StringOrProperty, StringOrProperty> fInner = new Function<StringOrProperty, StringOrProperty>() {
                     @Override
-                    public String apply(String str2) {
+                    public StringOrProperty apply(StringOrProperty str2) {
                         return str1.concat(str2);
                     }
                 };
@@ -90,7 +131,7 @@ public final class AString {
         };
 
         //        System.err.print("Just concated, before: " + this.fs);
-        FiniteSet<String> s = this.fs.flatMap(fOuter);
+        FiniteSet<StringOrProperty> s = this.fs.flatMap(fOuter);
         //        System.err.println(", argument: " + that.fs + ", after: " + s);
         return new AString(s);
     }

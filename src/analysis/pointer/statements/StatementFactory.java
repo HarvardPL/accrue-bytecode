@@ -781,6 +781,15 @@ public class StatementFactory {
                                            receiver);
     }
 
+    public StringStatement getNameCall(IMethod method, ReferenceVariable o, StringLikeVariable v) {
+        assert method != null;
+        assert o != null;
+        assert v != null;
+        assert stringStatementNeverCreatedBefore(new StatementKey(method, o, v));
+
+        return new GetNameCallStatement(method, o, v);
+    }
+
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                          ReferenceVariable result, List<StringLikeVariable> actuals) {
         assert callSite != null;
@@ -982,4 +991,5 @@ public class StatementFactory {
                     + key5 + ", key6=" + key6 + ", key7=" + key7 + "]";
         }
     }
+
 }
