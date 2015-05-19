@@ -183,10 +183,6 @@ public final class GraphDelta implements PointsToIterable {
         };
     }
 
-    //    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
-    //        return this.scd.getStatementsNeededByStringUpdates();
-    //    }
-
     public StringSolutionDelta getStringConstraintDelta() {
         return this.scd;
     }
