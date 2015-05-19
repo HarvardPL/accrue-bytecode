@@ -722,7 +722,7 @@ public class StatementRegistrar {
                 StringLikeVariable right = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(0));
                 this.addStringStatement(stmtFactory.localToLocalString(left, right, ir.getMethod(), i));
             }
-            else {
+            else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
                 this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
             }
         }
