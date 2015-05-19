@@ -6,6 +6,7 @@ import java.util.Map;
 import types.TypeRepository;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
+import analysis.dataflow.flowsensitizer.EscapedStringBuilderVariable;
 import analysis.pointer.registrar.strings.StringBuilderVariableFactory;
 import analysis.pointer.registrar.strings.StringLikeVariable;
 import analysis.pointer.registrar.strings.StringVariableFactory;
@@ -71,7 +72,14 @@ public final class FlowSensitiveStringLikeVariableFactory {
                 return StringVariableFactory.makeLocalString(method, varNum);
             }
             else if (klass.equals(StringAndReflectiveUtil.JavaLangStringBuilderIClass)) {
-                return map.get(varNum);
+                StringLikeVariable foo = map.get(varNum);
+                if (foo == null) {
+                    // This string builder is the result of some call that we don't handle, so we have no idea what its value is
+                    return EscapedStringBuilderVariable.make();
+                }
+                else {
+                    return foo;
+                }
             }
             else {
                 throw new RuntimeException("String variables may only be created for objects "
