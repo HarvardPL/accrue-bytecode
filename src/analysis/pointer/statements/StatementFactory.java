@@ -694,19 +694,6 @@ public class StatementFactory {
         return new StringInitStatement(method, sv);
     }
 
-    public StringStatement stringPhiNode(IMethod method, StringLikeVariable sv, Set<StringLikeVariable> dependentSVs) {
-        assert method != null;
-        assert sv != null;
-        assert dependentSVs != null;
-        for (StringLikeVariable dsv : dependentSVs) {
-            assert dsv != null;
-        }
-
-        assert stringStatementNeverCreatedBefore(new StatementKey(sv, dependentSVs));
-
-        return new StringPhiNode(method, sv, dependentSVs);
-    }
-
     public StringStatement getPropertyCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
                                            StringLikeVariable svresult, List<StringLikeVariable> svarguments) {
         assert callSite != null;
