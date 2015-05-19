@@ -232,25 +232,13 @@ public class StatementRegistrar {
             TypeRepository types = new TypeRepository(ir);
             PrettyPrinter pp = new PrettyPrinter(ir);
 
-            //            debugPrint(m, ">>>>>>> Analyzing : " + m.getName());
-            //            debugPrint(m, "+++++++\n");
-            //            for (SSAInstruction instruction : ir.getInstructions()) {
-            //                debugPrint(m, "  " + instruction);
-            //            }
-            //            debugPrint(m, "\n-------");
-            //
             FlowSensitiveStringLikeVariableFactory stringVariableFactory = getOrCreateStringVariableFactory(m);
 
-            //            debugPrint(m, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
             // Add edges from formal summary nodes to the local variables representing the method parameters
             this.registerFormalAssignments(ir, this.rvFactory, stringVariableFactory, types, pp);
 
-            //            Map<IMethod, Map<SSAInstruction, AnalysisRecord<T>>> flowSensitiveDataFlowResults = new StringBuilderFlowSensitizer<>(true,
-            //                                                                                                                                  new IFlowSensitizedVariableMapFactory<Var, IFlowSensitizedVariableMap<StringVariable, Integer>>());
-
             for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
-                    debugPrint(m, "  ins: " + ins);
                     if (ins.toString().contains("signatures/library/java/lang/String")
                             || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
                         System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
@@ -259,7 +247,6 @@ public class StatementRegistrar {
                     handleInstruction(ins, ir, bb, types, stringVariableFactory, pp);
                 }
             }
-            //            debugPrint(m, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 
             // now try to remove duplicates
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
@@ -288,11 +275,6 @@ public class StatementRegistrar {
                     throw new RuntimeException();
                 }
             }
-            debugPrint(m, "String statements for this method are: ");
-            debugPrint(m, this.stringStatementsForMethod.get(m) == null ? "{}"
-                    : this.stringStatementsForMethod.get(m).toString());
-            debugPrint(m, "Regular statements for this method are: ");
-            debugPrint(m, this.statementsForMethod.get(m) == null ? "{}" : this.statementsForMethod.get(m).toString());
             return true;
         }
         return false;
@@ -314,12 +296,6 @@ public class StatementRegistrar {
         }
         else {
             return v;
-        }
-    }
-
-    private void debugPrint(IMethod m, String string) {
-        if (m.getName().toString().contains("clinit") && m.getDeclaringClass().toString().contains("FSDirectory")) {
-            System.err.println(string);
         }
     }
 
