@@ -1,7 +1,6 @@
 package analysis.pointer.statements;
 
 import util.FiniteSet;
-import util.Logger;
 import analysis.pointer.analyses.ClassInstanceKey;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
@@ -77,10 +76,10 @@ public class GetNameCallStatement extends StringStatement {
                     }
                 });
 
-                Logger.println("[GetNameCallStatement] ___________________________");
-                Logger.println("[GetNameCallStatement] in method: " + this.getMethod());
-                Logger.println("[GetNameCallStatement] svr is: " + svr);
-                Logger.println("[GetNameCallStatement] getting names: " + strings);
+                System.err.println("[GetNameCallStatement] ___________________________");
+                System.err.println("[GetNameCallStatement] in method: " + this.getMethod());
+                System.err.println("[GetNameCallStatement] svr is: " + svr);
+                System.err.println("[GetNameCallStatement] getting names: " + strings);
 
                 changed.combine(g.stringSolutionVariableReplicaJoinAt(svr,
                                                                       ((ReflectiveHAF) haf).getAStringFromFiniteStringSet(strings)));

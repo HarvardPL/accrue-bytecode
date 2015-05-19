@@ -1,6 +1,5 @@
 package analysis.pointer.analyses;
 
-import util.Logger;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
 
@@ -25,7 +24,7 @@ public class SOPString implements StringOrPropertyFlat {
                                     .lookupClass(TypeReference.findOrCreate(ClassLoaderReference.Application, "L"
                                             + this.s.replace(".", "/")));
         if (result == null) {
-            Logger.println("[ForNameCallStatement] Could not find class for: " + this.s);
+            System.err.println("[SOPString] Could not find class for: " + this.s);
             return Optional.none();
         }
         else {

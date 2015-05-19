@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import util.Logger;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -51,11 +50,7 @@ public abstract class StringStatement implements ConstraintStatement {
         if (this.writersAreActive(context, g, pti, originator, haf, registrar)) {
             this.registerReadDependencies(context, haf, g, pti, originator, registrar);
             changes.combine(this.activateReads(context, haf, g, pti, originator, registrar));
-            Logger.println("updateSolution: " + this.toString());
             changes.combine(this.updateSolution(context, haf, g, pti, registrar, originator));
-        }
-        else {
-            Logger.println("notActive: " + this.toString());
         }
 
         return changes;

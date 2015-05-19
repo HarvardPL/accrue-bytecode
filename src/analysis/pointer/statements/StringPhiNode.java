@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
-import util.Logger;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -70,8 +69,6 @@ public class StringPhiNode extends StringStatement {
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
         StringLikeVariableReplica svr = new StringLikeVariableReplica(context, this.v);
         GraphDelta newDelta = new GraphDelta(g);
-
-        Logger.println("[StringPhiNode] " + this);
 
         for (StringLikeVariable dependency : dependencies) {
             StringLikeVariableReplica dependentSVR = new StringLikeVariableReplica(context, dependency);

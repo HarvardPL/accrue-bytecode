@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import util.Logger;
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import util.intmap.DenseIntMap;
@@ -1392,8 +1391,8 @@ public final class PointsToGraph implements PointsToIterable {
         StringSolutionDelta d = new StringSolutionDelta(this.sc);
         for (StringLikeLocationReplica location1 : svr1.getStringLocations()) {
             for (StringLikeLocationReplica location2 : svr2.getStringLocations()) {
-                Logger.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + svr1 + " ⊒ " + svr2 + " = "
-                        + this.getAStringFor(location2));
+                //                System.err.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + svr1 + " ⊒ " + svr2 + " = "
+                //                        + this.getAStringFor(location2));
                 d.combine(this.sc.upperBounds(location1, location2));
             }
         }
@@ -1402,8 +1401,8 @@ public final class PointsToGraph implements PointsToIterable {
 
     public GraphDelta stringSolutionVariableReplicaUpperBounds(StringLikeLocationReplica location1,
                                                                StringLikeLocationReplica location2) {
-        Logger.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + location1 + " ⊒ " + location2
-                + " = " + this.getAStringFor(location2));
+        //        System.err.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + location1 + " ⊒ " + location2
+        //                + " = " + this.getAStringFor(location2));
         return new GraphDelta(this, this.sc.upperBounds(location1, location2));
     }
 

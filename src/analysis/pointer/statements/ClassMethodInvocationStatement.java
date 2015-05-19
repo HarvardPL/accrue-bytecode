@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Set;
 
 import util.FiniteSet;
-import util.Logger;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.ClassInstanceKey;
@@ -130,7 +129,7 @@ public class ClassMethodInvocationStatement extends
             }
             AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("getClass", JavaLangClassIClass, caller, null, // XXX: This is caused by duplication of getClass statements (i.e. Reflective and Regular)
                                                                      false);
-            Logger.println("[ClassMethodInvocationStatement.getClassRM] classes: " + classes);
+            System.err.println("[ClassMethodInvocationStatement.getClassRM] classes: " + classes);
             changed.combine(g.addEdge(resultReplica,
                                       ((ReflectiveHAF) haf).recordReflective(((ReflectiveHAF) haf).getAClassSet(classes),
                                                                              asn,
@@ -245,7 +244,7 @@ public class ClassMethodInvocationStatement extends
                                                                                      null,
                                                                                      false);
                             InstanceKey newik = haf.record(asn, context);
-                            Logger.println("[ClassMethodInvocationStatement.newInstanceRM] class: " + klass);
+                            System.err.println("[ClassMethodInvocationStatement.newInstanceRM] class: " + klass);
                             changed.combine(g.addEdge(resultReplica, newik));
                         }
                     }
@@ -262,7 +261,7 @@ public class ClassMethodInvocationStatement extends
                                     .lookupClass(TypeReference.findOrCreate(ClassLoaderReference.Application, "L"
                                             + string.replace(".", "/")));
         if (result == null) {
-            Logger.println("[ClassMethodInvocationStatement.stringToIClass] Could not find class for: " + string);
+            System.err.println("[ClassMethodInvocationStatement.stringToIClass] Could not find class for: " + string);
             return Optional.none();
         }
         else {

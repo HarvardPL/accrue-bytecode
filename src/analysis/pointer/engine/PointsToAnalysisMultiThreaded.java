@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import main.AccrueAnalysisMain;
-import util.Logger;
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
 import util.intmap.IntMap;
@@ -258,9 +257,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         ConstraintStatement s = sac.stmt;
         Context c = sac.context;
 
-        Logger.push(false);
         GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
-        Logger.pop();
 
         if (changes.isEmpty()) {
             return;

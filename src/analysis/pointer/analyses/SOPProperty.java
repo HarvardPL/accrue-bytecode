@@ -1,6 +1,5 @@
 package analysis.pointer.analyses;
 
-import util.Logger;
 import util.optional.Optional;
 
 import com.ibm.wala.classLoader.IClass;
@@ -18,7 +17,7 @@ public class SOPProperty implements StringOrPropertyFlat {
 
     @Override
     public Optional<IClass> toIClass() {
-        Logger.println("[ForNameCallStatement] Could not find class for a PROPERTY: " + this.name);
+        System.err.println("[SOPProperty] Could not find class for a PROPERTY: " + this.name);
         return Optional.none();
     }
 

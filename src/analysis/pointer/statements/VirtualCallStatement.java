@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import util.Logger;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -89,7 +88,7 @@ public class VirtualCallStatement extends CallStatement {
             if (resolvedCallee != null && resolvedCallee.isAbstract()) {
                 // Abstract method due to a native method that returns an abstract type or interface
                 // TODO Handle abstract methods in a smarter way
-                Logger.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
+                System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
                 continue;
             }
 
@@ -116,8 +115,8 @@ public class VirtualCallStatement extends CallStatement {
                 // XXX Try the type of the reference variable instead
                 // This is probably a variable created for the return of a native method, then cast down
                 if (PointsToAnalysis.outputLevel >= 1) {
-                    Logger.println("Could not resolve " + receiverConcreteType + " " + this.callee.getSelector());
-                    Logger.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
+                    System.err.println("Could not resolve " + receiverConcreteType + " " + this.callee.getSelector());
+                    System.err.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
                 }
                 resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverExpectedType), this.callee.getSelector());
             }

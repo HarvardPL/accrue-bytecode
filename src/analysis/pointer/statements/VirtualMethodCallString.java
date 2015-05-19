@@ -3,7 +3,6 @@ package analysis.pointer.statements;
 import java.util.ArrayList;
 import java.util.List;
 
-import util.Logger;
 import util.OrderedPair;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -52,7 +51,7 @@ public class VirtualMethodCallString extends MethodCallString {
         boolean writersAreActive = false;
         if (this.actualReturn != null) {
             writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context,
-                                                                                                  this.actualReturn));
+                                                                                                      this.actualReturn));
         }
 
         ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
@@ -63,8 +62,8 @@ public class VirtualMethodCallString extends MethodCallString {
 
             for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
                 writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context,
-                                                                                                      summary.getFormals()
-                                                                                                             .get(pair.snd())));
+                                                                                                          summary.getFormals()
+                                                                                                                 .get(pair.snd())));
             }
         }
 
@@ -107,7 +106,7 @@ public class VirtualMethodCallString extends MethodCallString {
 
             for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
                 StringLikeVariableReplica parameter = new StringLikeVariableReplica(context, summary.getFormals()
-                                                                                            .get(pair.snd()));
+                                                                                                    .get(pair.snd()));
                 g.recordStringStatementDefineDependency(parameter, originator);
             }
 
@@ -123,8 +122,8 @@ public class VirtualMethodCallString extends MethodCallString {
     }
 
     @Override
-    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
-                                 StmtAndContext originator, StatementRegistrar registrar) {
+    protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+                                       PointsToIterable pti, StmtAndContext originator, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRVR = new ReferenceVariableReplica(context, this.receiver, haf);
 
         GraphDelta changes = new GraphDelta(g);
@@ -163,8 +162,8 @@ public class VirtualMethodCallString extends MethodCallString {
             ArrayList<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters = new ArrayList<>();
             for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
                 OrderedPair<StringLikeVariable, StringLikeVariable> newpair = new OrderedPair<>(pair.fst(),
-                                                                                        summary.getFormals()
-                                                                                               .get(pair.snd()));
+                                                                                                summary.getFormals()
+                                                                                                       .get(pair.snd()));
                 stringArgumentAndParameters.add(newpair);
             }
 
@@ -187,9 +186,9 @@ public class VirtualMethodCallString extends MethodCallString {
                 // XXX Try the type of the reference variable instead
                 // This is probably a variable created for the return of a native method, then cast down
                 if (PointsToAnalysis.outputLevel >= 1) {
-                    Logger.println("Could not resolve " + receiverConcreteType + " "
+                    System.err.println("Could not resolve " + receiverConcreteType + " "
                             + this.declaredTarget.getSelector());
-                    Logger.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
+                    System.err.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
                 }
                 resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverExpectedType),
                                                    this.declaredTarget.getSelector());
