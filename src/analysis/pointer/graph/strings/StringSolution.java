@@ -74,8 +74,7 @@ public class StringSolution {
      * @param shat
      * @return
      */
-    private void joinToVarAndBoundingVars(StringLikeLocationReplica svr, AString shat,
-                                                         StringSolutionDelta delta) {
+    private void joinToVarAndBoundingVars(StringLikeLocationReplica svr, AString shat, StringSolutionDelta delta) {
         assert this.isActive(svr) : svr + "\n" + this.active;
         // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
         AString current = this.map.get(svr);
@@ -172,14 +171,6 @@ public class StringSolution {
     public void recordStringStatementDefineDependency(StringLikeLocationReplica v, StmtAndContext sac) {
         this.depRecorder.recordWrite(v, sac);
     }
-
-    //    public Set<StmtAndContext> getDefinedBy(StringSolutionVariable v) {
-    //        return this.stringDependencies.getWrittenBy(v);
-    //    }
-    //
-    //    public Set<StmtAndContext> getUsedBy(StringSolutionVariable v) {
-    //        return this.stringDependencies.getUsedBy(v);
-    //    }
 
     public String getStatistics() {
         StringBuilder sb = new StringBuilder();
