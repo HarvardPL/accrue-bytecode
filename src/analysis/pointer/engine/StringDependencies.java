@@ -29,27 +29,6 @@ public class StringDependencies {
         this.readBy = AnalysisUtil.createConcurrentHashMap();
     }
 
-    //    public Set<StringSolutionVariable> activate(StringSolutionVariable x) {
-    //        Set<StringSolutionVariable> newlyActive = new HashSet<>();
-    //        activate(x, newlyActive);
-    //        return newlyActive;
-    //    }
-
-    //    private void activate(StringSolutionVariable x, Set<StringSolutionVariable> newlyActive) {
-    //        if (this.active.add(x)) {
-    //            newlyActive.add(x);
-    //            if (this.dependsOn.containsKey(x)) {
-    //                for (StringSolutionVariable y : this.dependsOn.get(x)) {
-    //                    activate(y, newlyActive);
-    //                }
-    //            }
-    //        }
-    //    }
-
-    //    public Set<StringSolutionVariable> getActiveSet() {
-    //        return this.active;
-    //    }
-    //
     public void recordWrite(StringLikeLocationReplica v, StmtAndContext sac) {
         setMapPut(this.writtenBy, v, sac);
     }
@@ -118,35 +97,6 @@ public class StringDependencies {
                     System.err.println(indent + "  is written by a statement with no reads: " + sac);
                 }
             }
-        }
-    }
-
-    //    public void printSVRDependencyTree(StringSolutionVariable svr, StringSolution sc) {
-    //        System.err.println("Dependency Tree for : " + svr + " = " + sc.getAStringFor(svr));
-    //        printDependencies("  ", svr, sc);
-    //    }
-
-    //    private void printDependencies(String prefix, StringSolutionVariable svr, StringSolution sc) {
-    //        for (StringSolutionVariable dep : nullElim(this.dependsOn.get(svr), new HashSet<StringSolutionVariable>())) {
-    //            System.err.println(prefix + dep + " = " + sc.getAStringFor(dep));
-    //            printDependencies(prefix + "  ", dep, sc);
-    //        }
-    //        if (nullElim(this.dependsOn.get(svr), new HashSet<StringSolutionVariable>()).isEmpty()) {
-    //            for (StmtAndContext sac : nullElim(this.definedBy.get(svr), new HashSet<StmtAndContext>())) {
-    //                System.err.println(prefix + "definedBy: " + sac);
-    //            }
-    //            if (nullElim(this.definedBy.get(svr), new HashSet<StmtAndContext>()).isEmpty()) {
-    //                System.err.println(prefix + "not defined anywhere");
-    //            }
-    //        }
-    //    }
-
-    private <A> A nullElim(A a, A def) {
-        if (a != null) {
-            return a;
-        }
-        else {
-            return def;
         }
     }
 
