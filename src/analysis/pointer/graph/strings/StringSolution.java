@@ -52,6 +52,10 @@ public class StringSolution {
     /* Logic */
 
     public AString getAStringFor(StringLikeLocationReplica svr) {
+        if (svr instanceof EscapedStringBuilderLocationReplica) {
+            return haf.getAStringTop();
+        }
+
         AString shat = this.map.get(svr);
         if (shat == null) {
             return haf.getAStringBottom();
@@ -75,6 +79,11 @@ public class StringSolution {
      * @return
      */
     private void joinToVarAndBoundingVars(StringLikeLocationReplica svr, AString shat, StringSolutionDelta delta) {
+        if (svr instanceof EscapedStringBuilderLocationReplica) {
+            /* it's already top */
+            return;
+        }
+
         assert this.isActive(svr) : svr + "\n" + this.active;
         // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
         AString current = this.map.get(svr);
@@ -132,6 +141,18 @@ public class StringSolution {
      * @return
      */
     public StringSolutionDelta upperBounds(StringLikeLocationReplica svr1, StringLikeLocationReplica svr2) {
+        if (svr1 instanceof EscapedStringBuilderLocationReplica) {
+            /* Don't bother since Escaped ones are always top */
+            return StringSolutionDelta.makeEmpty(this);
+        }
+
+        if (svr2 instanceof EscapedStringBuilderLocationReplica) {
+            /* we don't need to track upper bounding, all parties are top forever more */
+            StringSolutionDelta delta = StringSolutionDelta.makeEmpty(this);
+            this.joinToVarAndBoundingVars(svr1, haf.getAStringTop(), delta);
+            return delta;
+        }
+
         assert this.isActive(svr1) && this.isActive(svr2) : "svr1 : " + svr1 + " active? " + this.isActive(svr1)
                 + "; svr2 : " + svr2 + " active? " + this.isActive(svr2);
         Set<StringLikeLocationReplica> ub = this.upperBounds.get(svr2);
