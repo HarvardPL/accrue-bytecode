@@ -7,11 +7,13 @@ import util.OrderedPair;
 import analysis.AnalysisUtil;
 import analysis.pointer.graph.strings.StringBuilderLocationReplica;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.types.TypeReference;
 
-public class StringBuilderVariable implements StringBuilderLocation {
+public class StringBuilderVariable implements StringLikeVariable {
     private final Set<StringBuilderFlowSensitiveObject> objectSet;
 
     public static StringBuilderVariable make(IMethod method, Set<OrderedPair<Integer, Integer>> pairs) {
@@ -69,6 +71,31 @@ public class StringBuilderVariable implements StringBuilderLocation {
     @Override
     public String toString() {
         return "StringBuilderVariable [objectSet=" + objectSet + "]";
+    }
+
+    @Override
+    public TypeReference getExpectedType() {
+        return TypeReference.JavaLangStringBuilder;
+    }
+
+    @Override
+    public boolean isSingleton() {
+        return false;
+    }
+
+    @Override
+    public boolean isStringBuilder() {
+        return true;
+    }
+
+    @Override
+    public boolean isString() {
+        return false;
+    }
+
+    @Override
+    public boolean isNull() {
+        return false;
     }
 
 }

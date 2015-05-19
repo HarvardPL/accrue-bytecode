@@ -11,6 +11,7 @@ import types.TypeRepository;
 import util.OrderedPair;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IMethod;
@@ -204,8 +205,8 @@ public class StringBuilderFlowSensitizer extends MostlyBoringDataFlow<Sensitizer
         IR ir = AnalysisUtil.getIR(method);
         this.dataflow(ir);
 
-        final Map<SSAInstruction, Map<Integer, StringBuilderLocation>> useMap = new HashMap<>();
-        final Map<SSAInstruction, Map<Integer, StringBuilderLocation>> defMap = new HashMap<>();
+        final Map<SSAInstruction, Map<Integer, StringLikeVariable>> useMap = new HashMap<>();
+        final Map<SSAInstruction, Map<Integer, StringLikeVariable>> defMap = new HashMap<>();
         Iterator<SSAInstruction> it = ir.iterateAllInstructions();
 
         while (it.hasNext()) {
@@ -214,11 +215,11 @@ public class StringBuilderFlowSensitizer extends MostlyBoringDataFlow<Sensitizer
             SensitizerFact useFact = joinTs(this.getAnalysisRecord(i).getInput());
 
             Relation<Integer, OrderedPair<Integer, Integer>> useSensitizer = useFact.getRelation();
-            Map<Integer, StringBuilderLocation> uses = new HashMap<>();
+            Map<Integer, StringLikeVariable> uses = new HashMap<>();
             for (Entry<Integer, Set<OrderedPair<Integer, Integer>>> kv : useSensitizer.getEntrySet()) {
                 Integer var = kv.getKey();
                 if (useFact.isEscaped(var)) {
-                    uses.put(var, StringBuilderEscaped.make());
+                    uses.put(var, EscapedStringBuilderVariable.make());
                 }
                 else {
                     uses.put(var, StringBuilderVariable.make(this.method, kv.getValue()));
@@ -231,11 +232,11 @@ public class StringBuilderFlowSensitizer extends MostlyBoringDataFlow<Sensitizer
                     ? Relation.<Integer, OrderedPair<Integer, Integer>> makeBottom()
                     : joinTs(outputOrNull.values()).getRelation();
 
-            Map<Integer, StringBuilderLocation> defs = new HashMap<>();
+            Map<Integer, StringLikeVariable> defs = new HashMap<>();
             for (Entry<Integer, Set<OrderedPair<Integer, Integer>>> kv : defSensitizer.getEntrySet()) {
                 Integer var = kv.getKey();
                 if (useFact.isEscaped(var)) {
-                    defs.put(var, StringBuilderEscaped.make());
+                    defs.put(var, EscapedStringBuilderVariable.make());
                 }
                 else {
                     defs.put(var, StringBuilderVariable.make(method, kv.getValue()));
@@ -247,12 +248,12 @@ public class StringBuilderFlowSensitizer extends MostlyBoringDataFlow<Sensitizer
         return new Solution() {
 
             @Override
-            public Map<SSAInstruction, Map<Integer, StringBuilderLocation>> getUseRelation() {
+            public Map<SSAInstruction, Map<Integer, StringLikeVariable>> getUseRelation() {
                 return useMap;
             }
 
             @Override
-            public Map<SSAInstruction, Map<Integer, StringBuilderLocation>> getDefRelation() {
+            public Map<SSAInstruction, Map<Integer, StringLikeVariable>> getDefRelation() {
                 return defMap;
             }
         };
@@ -279,9 +280,9 @@ public class StringBuilderFlowSensitizer extends MostlyBoringDataFlow<Sensitizer
     }
 
     public interface Solution {
-        Map<SSAInstruction, Map<Integer, StringBuilderLocation>> getUseRelation();
+        Map<SSAInstruction, Map<Integer, StringLikeVariable>> getUseRelation();
 
-        Map<SSAInstruction, Map<Integer, StringBuilderLocation>> getDefRelation();
+        Map<SSAInstruction, Map<Integer, StringLikeVariable>> getDefRelation();
     }
 
 }

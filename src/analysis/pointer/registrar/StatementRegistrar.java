@@ -1584,7 +1584,10 @@ public class StatementRegistrar {
         if (summary == null) {
             IR ir = AnalysisUtil.getIR(method);
             if (ir == null) {
-                summary = MethodStringSummary.makeNative(method);
+                /* we shouldn't ever need a string method summary for a native method */
+                /* summary = MethodStringSummary.makeNative(method); */
+                throw new RuntimeException("We shouldn't ever need a string method summary for a native method "
+                        + method);
             }
             else {
                 summary = MethodStringSummary.make(method, ir);

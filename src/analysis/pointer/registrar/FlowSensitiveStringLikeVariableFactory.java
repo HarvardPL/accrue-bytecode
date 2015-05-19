@@ -6,7 +6,6 @@ import java.util.Map;
 import types.TypeRepository;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
-import analysis.dataflow.flowsensitizer.StringBuilderLocation;
 import analysis.pointer.registrar.strings.StringBuilderVariableFactory;
 import analysis.pointer.registrar.strings.StringLikeVariable;
 import analysis.pointer.registrar.strings.StringVariableFactory;
@@ -26,25 +25,24 @@ public final class FlowSensitiveStringLikeVariableFactory {
 
     private final IMethod method;
     private final TypeRepository typeRepo;
-    private final Map<SSAInstruction, Map<Integer, StringBuilderLocation>> useStringBuilderAtInstruction;
-    private final Map<SSAInstruction, Map<Integer, StringBuilderLocation>> defStringBuilderAtInstruction;
+    private final Map<SSAInstruction, Map<Integer, StringLikeVariable>> useStringBuilderAtInstruction;
+    private final Map<SSAInstruction, Map<Integer, StringLikeVariable>> defStringBuilderAtInstruction;
     private final Map<IField, StringLikeVariable> staticFieldCache;
 
     /* Factory Methods */
 
     public static FlowSensitiveStringLikeVariableFactory make(IMethod method,
                                                               TypeRepository types,
-                                                              Map<SSAInstruction, Map<Integer, StringBuilderLocation>> map,
-                                                              Map<SSAInstruction, Map<Integer, StringBuilderLocation>> map2) {
+                                                              Map<SSAInstruction, Map<Integer, StringLikeVariable>> map,
+                                                              Map<SSAInstruction, Map<Integer, StringLikeVariable>> map2) {
         return new FlowSensitiveStringLikeVariableFactory(method, types, map, map2);
     }
 
     /* Constructors */
 
-    private FlowSensitiveStringLikeVariableFactory(IMethod method,
-                                                   TypeRepository typeRepo,
-                                                   Map<SSAInstruction, Map<Integer, StringBuilderLocation>> map,
-                                                   Map<SSAInstruction, Map<Integer, StringBuilderLocation>> map2) {
+    private FlowSensitiveStringLikeVariableFactory(IMethod method, TypeRepository typeRepo,
+                                                   Map<SSAInstruction, Map<Integer, StringLikeVariable>> map,
+                                                   Map<SSAInstruction, Map<Integer, StringLikeVariable>> map2) {
         this.method = method;
         this.typeRepo = typeRepo;
         this.defStringBuilderAtInstruction = map;
@@ -62,7 +60,7 @@ public final class FlowSensitiveStringLikeVariableFactory {
         return getOrCreateLocal(this.useStringBuilderAtInstruction.get(i), useNum);
     }
 
-    private StringLikeVariable getOrCreateLocal(Map<Integer, StringBuilderLocation> map, Integer varNum) {
+    private StringLikeVariable getOrCreateLocal(Map<Integer, StringLikeVariable> map, Integer varNum) {
         StringLikeVariable maybeValue = null; /* localsCache.get(new OrderedPair<>(varNum, s)); */
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(typeRepo.getType(varNum));
         if (maybeValue == null) {
@@ -73,7 +71,7 @@ public final class FlowSensitiveStringLikeVariableFactory {
                 return StringVariableFactory.makeLocalString(method, varNum);
             }
             else if (klass.equals(StringAndReflectiveUtil.JavaLangStringBuilderIClass)) {
-                return StringBuilderVariableFactory.makeLocalStringBuilder(method, varNum, map.get(varNum));
+                return map.get(varNum);
             }
             else {
                 throw new RuntimeException("String variables may only be created for objects "
