@@ -48,8 +48,7 @@ public final class GraphDelta implements PointsToIterable {
         this.delta = new SparseIntMap<MutableIntSet>();
     }
 
-    MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src,
-            Integer initialSize) {
+    MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src, Integer initialSize) {
         MutableIntSet s = delta.get(src);
         if (s == null) {
             if (initialSize == null || initialSize == 0) {
@@ -64,8 +63,7 @@ public final class GraphDelta implements PointsToIterable {
     }
 
     private static int setSizeBestGuess(IntSet set) {
-        return set instanceof FilteredIntSet
-                ? ((FilteredIntSet) set).underlyingSetSize() : set.size();
+        return set instanceof FilteredIntSet ? ((FilteredIntSet) set).underlyingSetSize() : set.size();
     }
 
     protected void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
@@ -171,7 +169,6 @@ public final class GraphDelta implements PointsToIterable {
     public IntIterator domainIterator() {
         return delta.keyIterator();
     }
-
 
     @Override
     public Iterable<InstanceKey> pointsToIterable(final PointsToGraphNode node, StmtAndContext originator) {
