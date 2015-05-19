@@ -7,6 +7,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -14,16 +16,20 @@ import java.util.zip.GZIPOutputStream;
 
 import org.json.JSONException;
 
+import results.CollectResultsPass;
+import results.CollectedResults;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.dataflow.interprocedural.accessible.AccessibleLocationResults;
+import analysis.dataflow.interprocedural.accessible.AccessibleLocationsInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
-import analysis.dataflow.interprocedural.collect.CollectResultsInterproceduralDataFlow;
-import analysis.dataflow.interprocedural.collect.CollectedResults;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.dataflow.interprocedural.interval.IntervalInterProceduralDataFlow;
+import analysis.dataflow.interprocedural.interval.IntervalResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
@@ -49,13 +55,19 @@ import analysis.string.StringVariableFactory.StringVariable;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.AnalysisCache;
+import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions.ReflectionOptions;
+import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
+import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.ipa.callgraph.impl.Util;
+import com.ibm.wala.ipa.callgraph.propagation.PointerKey;
 import com.ibm.wala.ipa.callgraph.propagation.ReceiverTypeContextSelector;
 import com.ibm.wala.ipa.callgraph.propagation.SSAPropagationCallGraphBuilder;
+import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
 import com.ibm.wala.properties.WalaProperties;
 import com.ibm.wala.ssa.IR;
@@ -63,6 +75,7 @@ import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.WalaException;
+import com.ibm.wala.util.config.AnalysisScopeReader;
 
 /**
  * Run one of the selected analyses or tests, see usage
@@ -70,6 +83,7 @@ import com.ibm.wala.util.WalaException;
 public class AccrueAnalysisMain {
 
     public static boolean testMode;
+    public static int fileLevel;
 
     /**
      * Run one of the selected tests
@@ -99,12 +113,15 @@ public class AccrueAnalysisMain {
         String entryPoint = options.getEntryPoint();
         int outputLevel = options.getOutputLevel();
         String analysisName = options.getAnalysisName();
-        int fileLevel = options.getFileLevel();
+        AccrueAnalysisMain.fileLevel = options.getFileLevel();
         String classPath = options.getAnalysisClassPath();
         HeapAbstractionFactory haf = options.getHaf();
-        boolean isOnline = options.registerOnline();
         boolean useSingleThreadedPointerAnalysis = options.useSingleThreadedPointerAnalysis();
-        testMode = options.isTestMode();
+        int numThreads = useSingleThreadedPointerAnalysis ? 1 : options.getNumThreads();
+        AccrueAnalysisMain.testMode = options.isTestMode();
+        boolean disableSignatures = options.shouldDisableSignatures();
+        boolean useDefaultNativeSignatures = !options.shouldDisableDefaultNativeSignatures();
+        boolean disableObjectClone = options.shouldDisableObjectClone();
 
         // Trade-offs for points-to analysis precision vs. size/time
         boolean singleGenEx = options.shouldUseSingleAllocForGenEx();
@@ -112,10 +129,12 @@ public class AccrueAnalysisMain {
         boolean singlePrimArray = options.shouldUseSingleAllocForPrimitiveArrays();
         boolean singleString = options.shouldUseSingleAllocForStrings();
         boolean singleWrappers = options.shouldUseSingleAllocForImmutableWrappers();
+        boolean singleSwing = options.shouldUseSingleAllocForSwing();
 
         try {
             System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
-        } catch (WalaException e) {
+        }
+        catch (WalaException e) {
             e.printStackTrace();
         }
 
@@ -132,86 +151,72 @@ public class AccrueAnalysisMain {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results;
         PointsToGraph g;
         ReferenceVariableCache rvCache;
+        AccessibleLocationResults alr;
+        AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads, disableSignatures, disableObjectClone);
         switch (analysisName) {
         case "pointsto":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
-            System.err.println("STARTING WALA POINTER ANALYSIS");
-            runWalaPointerAnalysis(haf, singleGenEx, singleThrowable, singlePrimArray, singleString, singleWrappers);
+            runWalaPointerAnalysis(haf,
+                                   singleGenEx,
+                                   singleThrowable,
+                                   singlePrimArray,
+                                   singleString,
+                                   singleWrappers,
+                                   singleSwing,
+                                   classPath,
+                                   entryPoint,
+                                   fileLevel,
+                                   useDefaultNativeSignatures);
             break;
         case "pointsto2":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
             g = results.fst();
-//            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
+            //
             if (fileLevel > 0) {
-                ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
+                g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
             }
-//            System.err.println(g.getNodes().size() + " Nodes");
-            int num = 0;
-//            for (PointsToGraphNode n : g.getNodes()) {
-//                num += g.getPointsToSet(n).size();
-//            }
-            System.err.println(num + " Edges");
-//            System.err.println(g.getAllHContexts().size() + " HContexts");
-
-            int numNodes = 0;
-            for (@SuppressWarnings("unused")
-            CGNode n : g.getCallGraph()) {
-                numNodes++;
+            if (fileLevel > 1) {
+                g.dumpPointsToGraphToFile(outputDir + "/" + fileName + "_ptg", false);
             }
-            System.err.println(numNodes + " CGNodes");
-
-            System.err.println(g.getStringConstraintsStatistics());
-            g.printStringConstraints();
-
-            //            System.err.println(g.getStringConstraints());
-
-            // System.err.println("PointsToGraph");
-            // for (Entry<PointsToGraphNode, Set<InstanceKey>> kv : g.readAblePointsToGraph().entrySet()) {
-            //     PointsToGraphNode k = kv.getKey();
-            //     Set<InstanceKey> v = kv.getValue();
-            //     System.err.println("  " + k + " ↦ " + v);
-            // }
             break;
         case "maincfg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
             ir = AnalysisUtil.getIR(entry.getMethod());
             printSingleCFG(ir, outputDir + "/" + fileName + "_main");
             break;
         case "bool":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             runBooleanConstant(entryPoint,
                                outputLevel,
                                haf,
                                outputDir,
                                useSingleThreadedPointerAnalysis,
-                               isOnline,
                                singleGenEx,
                                singleThrowable,
                                singlePrimArray,
                                singleString,
-                               singleWrappers);
+                               singleWrappers,
+                               singleSwing,
+                               useDefaultNativeSignatures);
             break;
         case "nonnull":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -219,41 +224,90 @@ public class AccrueAnalysisMain {
             if (fileLevel > 0) {
                 nonNull.writeAllToFiles(r, outputDir);
             }
+        case "interval":
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            useSingleThreadedPointerAnalysis,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString,
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
+            g = results.fst();
+            rvCache = results.snd();
+            r = runReachability(otherOutputLevel, g, rvCache, null);
+            alr = runAccesibleLocations(otherOutputLevel, g, r, rvCache);
+            IntervalResults interval = runInterval(outputLevel, g, r, rvCache, alr);
+            if (fileLevel > 0) {
+                interval.writeAllToFiles(r, outputDir);
+            }
+            break;
+        case "collect":
+            // Collect and print results for the flow sensitive points-to analysis
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            useSingleThreadedPointerAnalysis,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString,
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
+            g = results.fst();
+            rvCache = results.snd();
+            r = runReachability(otherOutputLevel, g, rvCache, null);
+            alr = runAccesibleLocations(otherOutputLevel, g, r, rvCache);
+            interval = runInterval(outputLevel, g, r, rvCache, alr);
+            nonNull = runNonNull(outputLevel, g, r, rvCache);
 
-            CollectResultsInterproceduralDataFlow cr = new CollectResultsInterproceduralDataFlow(g,
-                                                                                                 r,
-                                                                                                 rvCache,
-                                                                                                 nonNull,
-                                                                                                 null);
-            cr.setOutputLevel(otherOutputLevel);
-            cr.runAnalysis();
-            CollectedResults cResults = (CollectedResults) cr.getAnalysisResults();
+            CollectResultsPass cr = new CollectResultsPass(nonNull, interval, g);
+            CollectedResults cResults = cr.run();
             System.err.println("NPE: "
                     + cResults.getNullPointerExceptionCount()
                     + "/"
                     + cResults.getPossibleNullPointerExceptionCount()
                     + " = "
                     + ((double) cResults.getNullPointerExceptionCount() / (double) cResults.getPossibleNullPointerExceptionCount()));
-            System.err.println("Casts Removed: " + cResults.getCastRemovalCount() + "/" + cResults.getTotalCastCount()
-                    + " = " + ((double) cResults.getCastRemovalCount() / (double) cResults.getTotalCastCount()));
+            System.out.println(cResults.getNullPointerExceptionCount());
+            System.out.println(cResults.getPossibleNullPointerExceptionCount() + "\n");
+            System.err.println("Casts Not Removed: " + cResults.getCastsNotRemovedCount() + "/"
+                    + cResults.getTotalCastCount() + " = "
+                    + ((double) cResults.getCastsNotRemovedCount() / cResults.getTotalCastCount()));
+            System.out.println(cResults.getCastsNotRemovedCount());
+            System.out.println(cResults.getTotalCastCount() + "\n");
             System.err.println("Arithmetic: "
                     + cResults.getArithmeticExceptionCount()
                     + "/"
                     + cResults.getPossibleArithmeticExceptionCount()
                     + " = "
                     + ((double) cResults.getArithmeticExceptionCount() / (double) cResults.getPossibleArithmeticExceptionCount()));
+            System.out.println(cResults.getArithmeticExceptionCount());
+            System.out.println(cResults.getPossibleArithmeticExceptionCount() + "\n");
+            System.err.println("Zero intervals: " + cResults.getZeroIntervalCount() + "/"
+                    + cResults.getPossibleZeroIntervalCount() + " = "
+                    + ((double) cResults.getZeroIntervalCount() / (double) cResults.getPossibleZeroIntervalCount()));
+            System.out.println(cResults.getZeroIntervalCount());
+            System.out.println(cResults.getPossibleZeroIntervalCount() + "\n");
+            System.err.println("Negative indices " + cResults.getNegIndex() + "/" + cResults.getPossibleNegIndex()
+                    + " = " + ((double) cResults.getNegIndex() / (double) cResults.getPossibleNegIndex()));
+            System.out.println(cResults.getNegIndex());
+            System.out.println(cResults.getPossibleNegIndex() + "\n");
+            System.out.println(g.getCallGraph().getNumberOfNodes());
             break;
         case "precise-ex":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -262,37 +316,36 @@ public class AccrueAnalysisMain {
             preciseEx.writeAllToFiles(r, outputDir);
             break;
         case "reachability":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
             r.writeAllToFiles(outputDir);
             break;
         case "cfg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
         case "cfg-for-class":
-            AnalysisUtil.init(classPath, null, outputDir);
             String name = "L" + options.getClassNameForCFG().replace(".", "/");
             System.err.println("Printing CFGs for " + name);
             TypeReference type = TypeReference.findOrCreate(ClassLoaderReference.Application, name);
@@ -311,16 +364,16 @@ public class AccrueAnalysisMain {
             }
             break;
         case "pdg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
-                                            isOnline,
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            singleSwing,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -384,7 +437,6 @@ public class AccrueAnalysisMain {
         //            printAllCFG(g);
         //            break;
         case "string-main":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             StringVariableFactory factory = new StringVariableFactory();
             StringAnalysisResults stringResults = new StringAnalysisResults(factory);
             IMethod main = AnalysisUtil.getOptions().getEntrypoints().iterator().next().getMethod();
@@ -393,9 +445,6 @@ public class AccrueAnalysisMain {
             for (StringVariable v : res.keySet()) {
                 System.err.println(v + " = " + res.get(v));
             }
-            break;
-        case "string-constraint":
-            // TODO(louisli)
             break;
         default:
             assert false;
@@ -437,7 +486,6 @@ public class AccrueAnalysisMain {
      * @param outputLevel print level
      * @param haf Definition of the abstraction for heap locations
      * @param singleThreaded whether to use a single-threaded pointer analysis
-     * @param online if true then points-to statements are registered during pointer analysis, rather than before
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -453,17 +501,24 @@ public class AccrueAnalysisMain {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param useSingleAllocForSwing If true then only one allocation will be made for each type of in the java swing
+     *            API
+     * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
+     *            other signature
+     * @param online if true then points-to statements are registered during pointer analysis, rather than before
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
                                                                                             HeapAbstractionFactory haf,
                                                                                             boolean singleThreaded,
-                                                                                            boolean isOnline,
                                                                                             boolean useSingleAllocForGenEx,
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings,
-                                                                                            boolean useSingleAllocForImmutableWrappers) {
+                                                                                            boolean useSingleAllocForImmutableWrappers,
+                                                                                            boolean useSingleAllocForSwing,
+                                                                                            boolean useDefaultNativeSignatures) {
+        System.err.println(AnalysisUtil.entryPoint);
         PointsToAnalysis analysis;
         HeapAbstractionFactory wrappedHaf = ReflectiveHAF.make(5, 5, haf);
         if (singleThreaded) {
@@ -476,27 +531,18 @@ public class AccrueAnalysisMain {
         PointsToGraph g;
         StatementRegistrar registrar;
         StatementFactory factory = new StatementFactory();
-        if (isOnline) {
-            registrar = new StatementRegistrar(factory,
-                                               useSingleAllocForGenEx,
-                                               useSingleAllocForThrowable,
-                                               useSingleAllocForPrimitiveArrays,
-                                               useSingleAllocForStrings,
-                                               useSingleAllocForImmutableWrappers);
-            g = analysis.solveAndRegister(registrar);
-        }
-        else {
-            StatementRegistrationPass pass = new StatementRegistrationPass(factory,
-                                                                           useSingleAllocForGenEx,
-                                                                           useSingleAllocForThrowable,
-                                                                           useSingleAllocForPrimitiveArrays,
-                                                                           useSingleAllocForStrings,
-                                                                           useSingleAllocForImmutableWrappers);
-            pass.run();
-            registrar = pass.getRegistrar();
-            PointsToAnalysis.outputLevel = outputLevel;
-            g = analysis.solve(registrar);
-        }
+        StatementRegistrationPass pass = new StatementRegistrationPass(factory,
+                                                                       useSingleAllocForGenEx,
+                                                                       useSingleAllocForThrowable,
+                                                                       useSingleAllocForPrimitiveArrays,
+                                                                       useSingleAllocForStrings,
+                                                                       useSingleAllocForImmutableWrappers,
+                                                                       useSingleAllocForSwing,
+                                                                       useDefaultNativeSignatures);
+        pass.run();
+        registrar = pass.getRegistrar();
+        PointsToAnalysis.outputLevel = outputLevel;
+        g = analysis.solve(registrar);
 
         System.err.println("Registered statements: " + registrar.size());
         if (outputLevel >= 2) {
@@ -506,9 +552,6 @@ public class AccrueAnalysisMain {
                 }
             }
         }
-        //        System.err.println(g.getNodes().size() + " PTG nodes.");
-        System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
-        System.err.println(g.clinitCount + " Class initializers.");
         if (singleThreaded) {
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).lines2 + " lines of code analyzed.");
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).instructions + " instructions analyzed.");
@@ -518,97 +561,135 @@ public class AccrueAnalysisMain {
         return new OrderedPair<>(g, rvCache);
     }
 
-    @SuppressWarnings("unused")
-    private static void runWalaPointerAnalysis(final HeapAbstractionFactory haf,
-                                               boolean useSingleAllocForGenEx,
+    private static void runWalaPointerAnalysis(final HeapAbstractionFactory haf, boolean useSingleAllocForGenEx,
                                                boolean useSingleAllocForThrowable,
                                                boolean useSingleAllocForPrimitiveArrays,
                                                boolean useSingleAllocForStrings,
-                                               boolean useSingleAllocForImmutableWrappers) {
-        AnalysisUtil.getOptions().setReflectionOptions(ReflectionOptions.NONE);
-        //        SSAPropagationCallGraphBuilder builder = Util.makeZeroCFABuilder(AnalysisUtil.getOptions(),
-        //                                                                         AnalysisUtil.getCache(),
-        //                                                                         AnalysisUtil.getClassHierarchy(),
-        //                                                                         AnalysisUtil.getScope());
-        SSAPropagationCallGraphBuilder builder = Util.makeZeroOneCFABuilder(AnalysisUtil.getOptions(),
-                                                                            AnalysisUtil.getCache(),
-                                                                            AnalysisUtil.getClassHierarchy(),
-                                                                            AnalysisUtil.getScope(),
-                                                                            new ReceiverTypeContextSelector(),
-                                                                            null);
+                                               boolean useSingleAllocForImmutableWrappers,
+                                               boolean useSingleAllocForSwing, String classPath,
+                                               String entryPoint, int fileLevel, boolean useDefaultNativeSignatures)
+                                                                                                                    throws IOException,
+                                                                                                                    ClassHierarchyException {
+        // Set up WALA's points-to analysis
+        AnalysisCache cache = new AnalysisCache();
+        AnalysisScope scope = AnalysisScopeReader.readJavaScope(AnalysisUtil.PRIMORDIAL_FILENAME,
+                                                        AnalysisUtil.EXCLUSIONS_FILE,
+                                                        AnalysisUtil.class.getClassLoader());
+        System.err.println("CLASSPATH=" + classPath);
+        AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
+        ClassHierarchy cha = ClassHierarchy.make(scope);
 
-        //        com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory haf2 = new com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory() {
-        //
-        //            @Override
-        //            public String toString() {
-        //                return haf.toString();
-        //            }
-        //
-        //            @Override
-        //            public InstanceKey record(AllocSiteNode allocationSite, Context context) {
-        //                analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode asn = new analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode(allocationSite.toString(),
-        //                                                                                                                                                        allocationSite.getAllocatedClass(),
-        //                                                                                                                                                        allocationSite.getAllocatingMethod(),
-        //                                                                                                                                                        allocationSite.getProgramCounter(),
-        //                                                                                                                                                        allocationSite.isStringLiteral(),
-        //                                                                                                                                                        allocationSite.getLineNumber()) {
-        //                    @Override
-        //                    public boolean equals(Object obj) {
-        //                        if (!(obj instanceof analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode)) {
-        //                            return false;
-        //                        }
-        //                        analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode other = (analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode) obj;
-        //                        return this.getAllocatedClass().equals(other.getAllocatedClass())
-        //                                && this.getAllocatingMethod().equals(other.getAllocatingMethod())
-        //                                && this.getProgramCounter() == other.getProgramCounter()
-        //                                && this.isStringLiteral() == other.isStringLiteral()
-        //                                && this.getLineNumber() == other.getLineNumber();
-        //                    }
-        //
-        //                    @Override
-        //                    public int hashCode() {
-        //                        return this.getAllocatedClass().hashCode() + this.getAllocatingMethod().hashCode()
-        //                                + this.getProgramCounter() + (this.isStringLiteral() ? 1 : 0) + this.getLineNumber();
-        //                    }
-        //
-        //                };
-        //
-        //                return haf.record(asn, context);
-        //            }
-        //
-        //            @Override
-        //            public Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
-        //                analysis.pointer.statements.CallSiteLabel csl = new analysis.pointer.statements.CallSiteLabel(callSite.getCaller(),
-        //                                                                                                              callSite.getReference());
-        //                return haf.merge(csl, receiver, callerContext);
-        //            }
-        //
-        //            @Override
-        //            public Context initialContext() {
-        //                return haf.initialContext();
-        //            }
-        //        };
-        //        MultiThreadedCallGraphBuilder builder = new MultiThreadedCallGraphBuilder(AnalysisUtil.getOptions(),
-        //                                                                                  AnalysisUtil.getCache(),
-        //                                                                                  AnalysisUtil.getClassHierarchy(),
-        //                                                                                  AnalysisUtil.getScope(),
-        //                                                                                  haf2,
-        //                                                                                  useSingleAllocForGenEx,
-        //                                                                                  useSingleAllocForThrowable,
-        //                                                                                  useSingleAllocForPrimitiveArrays,
-        //                                                                                  useSingleAllocForStrings,
-        //                                                                                  useSingleAllocForImmutableWrappers);
+        //        Collection<CGNode> entries = g.getCallGraph().getEntrypointNodes();
+        Iterable<Entrypoint> entrypoints;
+        if (entryPoint == null) {
+            entrypoints = Collections.emptySet();
+        }
+        else {
+            // Add L to the name to indicate that this is a class name
+            entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
+                    + entryPoint.replace(".", "/"));
+        }
+
+        AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
+
+        options.setReflectionOptions(ReflectionOptions.NONE);
+        // Clinits are computed by our analysis and passed in, WALA seems to analyze way too many
+        //        options.setHandleStaticInit(false);
+        SSAPropagationCallGraphBuilder builder = Util.makeVanillaZeroOneCFABuilder(options,
+                                                                                   cache,
+                                                                                   cha,
+                                                                                   scope,
+                                                                                   new ReceiverTypeContextSelector(),
+                                                                                   null);
 
         try {
+            System.err.println("STARTING WALA POINTER ANALYSIS");
             long start = System.currentTimeMillis();
-            CallGraph cg = builder.makeCallGraph(AnalysisUtil.getOptions(), null);
-            System.err.println("FINISHED: " + (System.currentTimeMillis() - start));
-            System.err.println("\t" + cg.getNumberOfNodes() + " call graph nodes");
+            ExplicitCallGraph cg = (ExplicitCallGraph) builder.makeCallGraph(options, null);
+            System.out.println((System.currentTimeMillis() - start) / 1000.0);
+            long nodes = 0;
+            long edges = 0;
+            System.err.println("\n!!!!!!!!!!!!!!!! POINTS-TO-GRAPH-NODES !!!!!!!!!!!!!!!!");
+            for (PointerKey key : builder.getPointerAnalysis().getPointerKeys()) {
+                nodes++;
+                edges += builder.getPointerAnalysis().getPointsToSet(key).size();
+                //System.out.println(escape(key));
+            }
+            System.err.println("\tWALA CG nodes: " + cg.getNumberOfNodes());
+            System.err.println("\tWALA PTG nodes: " + nodes);
+            System.err.println("\tWALA PTG edges: " + edges);
+            if (fileLevel > 0) {
+                // Run our points-to analysis and compare the results to WALA's
+                // This is only to find bugs not for performance comparison
+                OrderedPair<PointsToGraph, ReferenceVariableCache> out = generatePointsToGraph(0,
+                                                                                               haf,
+                                                                                               false,
+                                                                                               useSingleAllocForGenEx,
+                                                                                               useSingleAllocForThrowable,
+                                                                                               useSingleAllocForPrimitiveArrays,
+                                                                                               useSingleAllocForStrings,
+                                                                                               useSingleAllocForImmutableWrappers,
+                                                                                               useSingleAllocForSwing,
+                                                                                               useDefaultNativeSignatures);
+                PointsToGraph g = out.fst();
+                HafCallGraph.dumpCallGraphToFile("walaCallGraph", false, cg);
+                HafCallGraph.dumpCallGraphToFile("ourCallGraph", false, g.getCallGraph());
+                compareCallGraphs(cg, g.getCallGraph(), true);
+                System.err.println("##########################  REVERSE COMPARE  ##########################");
+                compareCallGraphs(g.getCallGraph(), cg, false);
+            }
+
         }
         catch (IllegalArgumentException | CancelException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Print the edges in call graph 1 where the first node is in call graph 2 but the edge is not
+     *
+     * @param cg1 call graph to compare to
+     * @param cg2 call graph to compare
+     * @param firstIsWala whether the first call graph is from WALA otherwise the second is
+     */
+    private static void compareCallGraphs(CallGraph cg1, CallGraph cg2, boolean firstIsWala) {
+        for (CGNode n : cg2) {
+
+            CGNode walaN = null;
+            for (CGNode nn : cg1) {
+                if (PrettyPrinter.cgNodeString(n).equals(PrettyPrinter.cgNodeString(nn))) {
+                    walaN = nn;
+                    break;
+                }
+            }
+            if (walaN == null) {
+                System.err.println("NODE: " + PrettyPrinter.cgNodeString(n)
+                        + (firstIsWala ? " not in WALA" : " not in Ours"));
+                continue;
+            }
+
+            Iterator<CGNode> walaSuccs = cg1.getSuccNodes(walaN);
+            while (walaSuccs.hasNext()) {
+                boolean found = false;
+                CGNode walaSucc = walaSuccs.next();
+                Iterator<CGNode> succs = cg2.getSuccNodes(n);
+                while (succs.hasNext()) {
+                    CGNode succ = succs.next();
+                    if (PrettyPrinter.cgNodeString(walaSucc).equals(PrettyPrinter.cgNodeString(succ))) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    //                    if (walaSucc.getContext().toString().contains("Exception>")) {
+                    //                        // We know we are more precise than WALA for exceptions
+                    //                        continue;
+                    //                    }
+                    System.err.println("UNFOUND: " + PrettyPrinter.cgNodeString(n) + " -> "
+                            + PrettyPrinter.cgNodeString(walaSucc));
+                }
+            }
         }
     }
 
@@ -710,7 +791,6 @@ public class AccrueAnalysisMain {
      * @param haf heap abstraction factory defining analysis contexts
      * @param outputDir directory to print output to
      * @param singleThreaded should this use a single-threaded pointer analysis
-     * @param isOnline should use an online points-to statement registration
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -726,22 +806,25 @@ public class AccrueAnalysisMain {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
+     *            other signature
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
-                                           String outputDir, boolean singleThreaded, boolean isOnline,
-                                           boolean useSingleAllocForGenEx,
-                                           boolean useSingleAllocForThrowable,
+                                           String outputDir, boolean singleThreaded,
+                                           boolean useSingleAllocForGenEx, boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
-                                           boolean useSingleAllocForImmutableWrappers) {
+                                           boolean useSingleAllocForImmutableWrappers, boolean useSingleAllocForSwing,
+                                           boolean useDefaultNativeSignatures) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
-                                                                                           isOnline,
                                                                                            singleThreaded,
                                                                                            useSingleAllocForGenEx,
                                                                                            useSingleAllocForThrowable,
                                                                                            useSingleAllocForPrimitiveArrays,
                                                                                            useSingleAllocForStrings,
-                                                                                           useSingleAllocForImmutableWrappers);
+                                                                                           useSingleAllocForImmutableWrappers,
+                                                                                           useSingleAllocForSwing,
+                                                                                           useDefaultNativeSignatures);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {
@@ -762,5 +845,105 @@ public class AccrueAnalysisMain {
             System.err.println("Could not find methods in: " + entryPoint);
             return;
         }
+    }
+
+    /**
+     * Run the accessible locations analysis and return the results
+     *
+     * @param outputLevel amount of printing
+     * @param g points-to graph
+     * @param r results of a reachability analysis
+     * @return the results of the accessible locations analysis
+     */
+    private static AccessibleLocationResults runAccesibleLocations(int outputLevel, PointsToGraph g,
+                                                                   ReachabilityResults r, ReferenceVariableCache rvCache) {
+        AccessibleLocationsInterproceduralDataFlow analysis = new AccessibleLocationsInterproceduralDataFlow(g,
+                                                                                                             r,
+                                                                                                             rvCache);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        return analysis.getAnalysisResults();
+    }
+
+    /**
+     * Run the interval analysis and return the results
+     *
+     * @param method method to print the results for
+     * @param g points-to graph
+     * @param r results of a reachability analysis
+     * @return the results of the non-null analysis
+     */
+    private static IntervalResults runInterval(int outputLevel, PointsToGraph g, ReachabilityResults r,
+                                               ReferenceVariableCache rvCache, AccessibleLocationResults alr) {
+        // XXX change true to false to be flow insensitive
+        IntervalInterProceduralDataFlow analysis = new IntervalInterProceduralDataFlow(g, r, rvCache, true, alr);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        return analysis.getAnalysisResults();
+    }
+
+    @SuppressWarnings("unused")
+    private static void runOurAnalysisInWALA() {
+        //        com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory haf2 = new com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory() {
+        //
+        //            @Override
+        //            public String toString() {
+        //                return haf.toString();
+        //            }
+        //
+        //            @Override
+        //            public InstanceKey record(AllocSiteNode allocationSite, Context context) {
+        //                analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode asn = new analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode(allocationSite.toString(),
+        //                                                                                                                                                        allocationSite.getAllocatedClass(),
+        //                                                                                                                                                        allocationSite.getAllocatingMethod(),
+        //                                                                                                                                                        allocationSite.getProgramCounter(),
+        //                                                                                                                                                        allocationSite.isStringLiteral(),
+        //                                                                                                                                                        allocationSite.getLineNumber()) {
+        //                    @Override
+        //                    public boolean equals(Object obj) {
+        //                        if (!(obj instanceof analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode)) {
+        //                            return false;
+        //                        }
+        //                        analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode other = (analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode) obj;
+        //                        return this.getAllocatedClass().equals(other.getAllocatedClass())
+        //                                && this.getAllocatingMethod().equals(other.getAllocatingMethod())
+        //                                && this.getProgramCounter() == other.getProgramCounter()
+        //                                && this.isStringLiteral() == other.isStringLiteral()
+        //                                && this.getLineNumber() == other.getLineNumber();
+        //                    }
+        //
+        //                    @Override
+        //                    public int hashCode() {
+        //                        return this.getAllocatedClass().hashCode() + this.getAllocatingMethod().hashCode()
+        //                                + this.getProgramCounter() + (this.isStringLiteral() ? 1 : 0) + this.getLineNumber();
+        //                    }
+        //
+        //                };
+        //
+        //                return haf.record(asn, context);
+        //            }
+        //
+        //            @Override
+        //            public Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+        //                analysis.pointer.statements.CallSiteLabel csl = new analysis.pointer.statements.CallSiteLabel(callSite.getCaller(),
+        //                                                                                                              callSite.getReference());
+        //                return haf.merge(csl, receiver, callerContext);
+        //            }
+        //
+        //            @Override
+        //            public Context initialContext() {
+        //                return haf.initialContext();
+        //            }
+        //        };
+        //        MultiThreadedCallGraphBuilder builder = new MultiThreadedCallGraphBuilder(AnalysisUtil.getOptions(),
+        //                                                                                  AnalysisUtil.getCache(),
+        //                                                                                  AnalysisUtil.getClassHierarchy(),
+        //                                                                                  AnalysisUtil.getScope(),
+        //                                                                                  haf2,
+        //                                                                                  useSingleAllocForGenEx,
+        //                                                                                  useSingleAllocForThrowable,
+        //                                                                                  useSingleAllocForPrimitiveArrays,
+        //                                                                                  useSingleAllocForStrings,
+        //                                                                                  useSingleAllocForImmutableWrappers);
     }
 }

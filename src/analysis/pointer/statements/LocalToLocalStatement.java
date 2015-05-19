@@ -1,7 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,11 +34,6 @@ public class LocalToLocalStatement extends PointsToStatement {
     private final boolean filter;
 
     /**
-     * Is right from a method summary?
-     */
-    private final boolean isFromMethodSummaryVariable;
-
-    /**
      * Statement for a local assignment, left = right
      *
      * @param left
@@ -50,15 +43,13 @@ public class LocalToLocalStatement extends PointsToStatement {
      * @param m
      *            method the assignment is from
      */
-    protected LocalToLocalStatement(ReferenceVariable left,
-            ReferenceVariable right, IMethod m, boolean filterBasedOnType,
-            boolean isFromMethodSummaryVariable) {
+    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IMethod m,
+                                    boolean filterBasedOnType) {
         super(m);
         assert !left.isSingleton() : left + " is static";
         this.left = left;
         this.right = right;
         filter = filterBasedOnType;
-        this.isFromMethodSummaryVariable = isFromMethodSummaryVariable;
     }
 
     @Override

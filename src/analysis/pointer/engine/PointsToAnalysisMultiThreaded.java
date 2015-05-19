@@ -1,8 +1,10 @@
 package analysis.pointer.engine;
 
 import java.lang.management.ManagementFactory;
+import java.text.NumberFormat;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -10,17 +12,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import main.AccrueAnalysisMain;
-import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
+import util.intmap.ConcurrentMonotonicIntHashMap;
 import util.intmap.IntMap;
-import util.intset.ConcurrentIntHashSet;
+import util.intset.ConcurrentMonotonicIntHashSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StringStatement;
@@ -32,7 +33,10 @@ import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
-
+    /**
+     * Should we use one task for all the statements associated with a GraphDelta?
+     */
+    private static final boolean ONE_TASK_PER_DELTA = false;
 
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
@@ -51,9 +55,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     private static boolean paranoidMode = false;
 
-    int numThreads() {
-        //return 1;
-        return Runtime.getRuntime().availableProcessors();
+    static int numThreads() {
+        return AnalysisUtil.numThreads;
     }
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
@@ -62,22 +65,19 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     @Override
     public PointsToGraph solve(StatementRegistrar registrar) {
-        return this.solveConcurrently(registrar, false);
+        return this.solveConcurrently(registrar);
     }
 
-    @Override
-    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
-        onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
-        return this.solveConcurrently(onlineRegistrar, true);
-    }
-
-    public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
-        System.err.println("Starting points to engine using " + this.haf);
+    @SuppressWarnings("synthetic-access")
+    public PointsToGraph solveConcurrently(final StatementRegistrar registrar) {
+        System.err.println("Starting points to engine using " + this.haf + " "
+                + PointsToAnalysisMultiThreaded.numThreads() + " threads " + " intmap is "
+                + this.makeConcurrentIntMap().getClass().getName());
         long startTime = System.currentTimeMillis();
 
 
         //final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
-        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
+        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(PointsToAnalysisMultiThreaded.numThreads()));
         //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
         //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
         //                                                                                               null,
@@ -102,21 +102,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void finishCollapseNode(int n, int rep) {
-                // remove the old dependency.
-                Set<StmtAndContext> deps = interestingDepedencies.get(n);
-                if (deps != null) {
-                    interestingDepedencies.remove(n);
-                }
+            public void finishCollapseNode(int n) {
+                // remove the old dependencies.
+                interestingDepedencies.remove(n);
             }
 
             @Override
             public void recordNewContext(IMethod callee, Context calleeContext) {
-                if (registerOnline) {
-                    // Add statements for the given method to the registrar
-                    registrar.registerMethod(callee);
-                }
-
                 for (ConstraintStatement stmt : registrar.getStatementsForMethod(callee)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     execService.submitTask(newSaC);
@@ -162,23 +154,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
 
-        if (registerOnline) {
-            StatementListener stmtListener = new StatementListener() {
-
-                @Override
-                public void newStatement(PointsToStatement stmt) {
-                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
-                        // it's a new special instruction. Let's make sure it gets evaluated.
-                        execService.submitTask(new StmtAndContext(stmt, haf.initialContext()));
-                    }
-
-                }
-
-            };
-            registrar.setStatementListener(stmtListener);
-        }
-
-
         // start up...
 
         while (execService.containsPending()) {
@@ -190,28 +165,45 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
-        if (AccrueAnalysisMain.testMode) {
-            System.out.println(totalTime / 1000.0);
+        int ptgNodes = g.numPointsToGraphNodes();
+
+        // Compute the number of edges
+        IntMap<MutableIntSet> graph = g.getPointsToGraph();
+        IntIterator nodes = graph.keyIterator();
+        long totalEdges = 0;
+        while (nodes.hasNext()) {
+            int n = nodes.next();
+            if (g.isCollapsedNode(n)) {
+                // don't double count this node
+                continue;
+            }
+            IntSet s = graph.get(n);
+            totalEdges += s.size();
         }
+
+        // number of call graph nodes
+        int numCGNodes = g.getNumberOfCallGraphNodes();
+
+        System.out.println(totalTime / 1000.0);
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
-        System.err.println("   Number of threads used : " + this.numThreads());
-        System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
+        System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
+        System.err.println("   Num graph source nodes : " + ptgNodes);
         System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
+        System.err.println("   Num graph edges        : " + totalEdges);
+        System.err.println("   Num CG nodes           : " + numCGNodes);
+
+        System.err.println("\n\nENTRY: " + AnalysisUtil.entryPoint);
+        System.err.println(numCGNodes);
+        System.err.println(ptgNodes);
+        System.err.println(totalEdges);
+        System.err.println(numCGNodes + " " + ptgNodes + " " + totalEdges);
+        System.err.println("\t&\t" + NumberFormat.getNumberInstance(Locale.US).format(numCGNodes) + "\t&\t"
+                + NumberFormat.getNumberInstance(Locale.US).format(ptgNodes) + "\t&\t"
+                + NumberFormat.getNumberInstance(Locale.US).format(totalEdges) + "\t \\\\ \\hline");
+        System.err.println("\n");
+
         if (!AccrueAnalysisMain.testMode) {
-            IntMap<MutableIntSet> graph = g.getPointsToGraph();
-            IntIterator nodes = graph.keyIterator();
-            long totalEdges = 0;
-            while (nodes.hasNext()) {
-                int n = nodes.next();
-                if (g.isCollapsedNode(n)) {
-                    // don't double count this node
-                    continue;
-                }
-                IntSet s = graph.get(n);
-                totalEdges += s.size();
-            }
-            System.err.println("   Num graph edges        : " + totalEdges);
 
             //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
             System.err.println("   Memory utilization     : "
@@ -224,11 +216,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
-            g.findCycles();
+            GraphDelta delta = g.findCycles();
+            assert delta == null || delta.isEmpty() : delta.toString();
             System.err.println("   New num nodes collapsed    : " + g.cycleRemovalCount());
-            long totalEdges = 0;
-            IntMap<MutableIntSet> graph = g.getPointsToGraph();
-            IntIterator nodes = graph.keyIterator();
+            long totalEdges2 = 0;
+            graph = g.getPointsToGraph();
+            nodes = graph.keyIterator();
             while (nodes.hasNext()) {
                 int n = nodes.next();
                 if (g.isCollapsedNode(n)) {
@@ -236,18 +229,19 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     continue;
                 }
                 IntSet s = graph.get(n);
-                totalEdges += s.size();
+                totalEdges2 += s.size();
             }
-            System.err.println("   New num graph edges        : " + totalEdges);
+            System.err.println("   New num graph edges        : " + totalEdges2);
 
         }
-        g.constructionFinished();
         if (!AccrueAnalysisMain.testMode) {
+            g.constructionFinished();
             System.gc();
             System.err.println("   Memory post compression: "
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
         }
+
 
         return g;
     }
@@ -263,10 +257,20 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             return;
         }
         IntIterator iter = changes.domainIterator();
-        while (iter.hasNext()) {
-            int n = iter.next();
-            for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
-                execService.submitTask(depSaC, changes);
+        if (ONE_TASK_PER_DELTA) {
+            Set<StmtAndContext> depSaCs = new HashSet<>();
+            while (iter.hasNext()) {
+                int n = iter.next();
+                depSaCs.addAll(this.getInterestingDependencies(n));
+            }
+            execService.submitTask(depSaCs, changes);
+        }
+        else {
+            while (iter.hasNext()) {
+                int n = iter.next();
+                for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
+                    execService.submitTask(depSaC, changes);
+                }
             }
         }
 
@@ -343,6 +347,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             exec.execute(new RunnableStmtAndContext(sac, delta));
         }
 
+        public void submitTask(Set<StmtAndContext> sacs, GraphDelta delta) {
+            this.numTasks.incrementAndGet();
+            assert delta != null;
+            this.totalTasksWithDelta.incrementAndGet();
+            exec.execute(new RunnableStmtAndContextsWithDelta(sacs, delta));
+        }
+
         public void finishedTask() {
             if (this.numTasks.decrementAndGet() == 0) {
                 // Notify anyone that was waiting.
@@ -398,6 +409,32 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
 
+        public class RunnableStmtAndContextsWithDelta implements Runnable {
+            private final Set<StmtAndContext> sacs;
+            private final GraphDelta delta;
+
+            public RunnableStmtAndContextsWithDelta(Set<StmtAndContext> stmtAndContexts, GraphDelta delta) {
+                this.sacs = stmtAndContexts;
+                this.delta = delta;
+            }
+
+            @Override
+            public void run() {
+                try {
+                    for (StmtAndContext sac : sacs) {
+                        processSaC(sac, delta, ExecutorServiceCounter.this);
+                    }
+                    ExecutorServiceCounter.this.finishedTask();
+                }
+                catch (Throwable e) {
+                    e.printStackTrace();
+                    System.exit(0);
+                    // No seriously DIE!
+                    Runtime.getRuntime().halt(0);
+                }
+            }
+        }
+
     }
 
     /**
@@ -421,9 +458,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     }
                     changed |= !d.isEmpty();
                     if (!d.isEmpty()) {
+                        IntIterator iter = d.domainIterator();
+                        while (iter.hasNext()) {
+                            int n = iter.next();
+                            assert !g.isCollapsedNode(n) : "Apparently we added to a collapsed node";
+                        }
                         System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
                         failcount++;
-                        if (failcount > 10) {
+                        if (failcount > 3) {
                             System.err.println("\nThere may be more failures, but exiting now...");
                             System.exit(1);
                         }
@@ -472,11 +514,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
-        return new ConcurrentIntHashSet(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentMonotonicIntHashSet(AnalysisUtil.numThreads);
+        //return new ConcurrentIntHashSet(16, 0.75f, AnalysisUtil.numThreads);
+        //return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentMonotonicIntHashMap<>(AnalysisUtil.numThreads);
+        //return new ConcurrentIntHashMap<>(16, 0.75f, AnalysisUtil.numThreads);
     }
 
     /**

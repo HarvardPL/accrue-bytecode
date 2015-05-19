@@ -223,7 +223,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                                             + edgeLabel + ";\n");
         }
 
-        writer.write("\n};\n");
+        writer.write("\n}\n");
     }
 
     /**
@@ -419,7 +419,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                     }
                 }
 
-                writer.write("\n};\n");
+                writer.write("\n}\n");
             }
             System.err.println("DOT written to " + fileName);
         }

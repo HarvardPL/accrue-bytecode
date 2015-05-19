@@ -76,8 +76,10 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
     @Override
     public AllocationNameContext initialContext() {
-        return AllocationNameContext.create(null);
+        return INITIAL;
     }
+
+    private static final AllocationNameContext INITIAL = AllocationNameContext.create(null);
 
     @Override
     public String toString() {
@@ -95,7 +97,7 @@ public class FullObjSensitive extends HeapAbstractionFactory {
                 AllocationName<ContextStack<AllocSiteNode>> an) {
             // XXX ANDREW: maybe make this memoize. Steve: Yes, in the meantime ensure we have equality defined.
 
-            return new AllocationNameContext(an);
+            return memoize(new AllocationNameContext(an), an);
         }
 
         @Override
@@ -109,33 +111,12 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + (an == null ? 0 : an.hashCode());
-            return result;
+            return super.hashCode();
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof AllocationNameContext)) {
-                return false;
-            }
-            AllocationNameContext other = (AllocationNameContext) obj;
-            if (an == null) {
-                if (other.an != null) {
-                    return false;
-                }
-            }
-            else if (!an.equals(other.an)) {
-                return false;
-            }
-            return true;
+            return this == obj;
         }
 
         @Override

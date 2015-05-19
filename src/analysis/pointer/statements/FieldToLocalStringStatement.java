@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -13,6 +14,7 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringLikeVariable;
 
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -23,13 +25,13 @@ public class FieldToLocalStringStatement extends StringStatement {
     private final StringLikeVariable v;
     // this cannot be final because of `replaceUse(..)`
     private ReferenceVariable o;
-    private final FieldReference field;
+    private final IField field;
 
     public FieldToLocalStringStatement(StringLikeVariable svv, ReferenceVariable o, FieldReference field, IMethod method) {
         super(method);
         this.v = svv;
         this.o = o;
-        this.field = field;
+        this.field = AnalysisUtil.getClassHierarchy().resolveField(field);
     }
 
     @Override

@@ -95,15 +95,36 @@ public class AnalysisUtil {
     /**
      * File describing classes that should be ignored by all analyses, even the WALA class loader
      */
-    private static final File EXCLUSIONS_FILE = new File("Exclusions.txt");
+    public static final File EXCLUSIONS_FILE = new File("Exclusions.txt");
     /**
      * File containing the location of the java standard library and other standard jars
      */
-    private static final String PRIMORDIAL_FILENAME = "primordial.txt";
+    public static final String PRIMORDIAL_FILENAME = "primordial.txt";
     /**
      * Signatures
      */
     public static final Signatures signatures = new Signatures();
+
+    /**
+     * Number of threads to use for concurrent data structures
+     *
+     * XXX initialized to total processors to make sure there is something here during initialization
+     */
+    public static int numThreads = Runtime.getRuntime().availableProcessors();
+    /**
+     * Whether signatures should be used. If this flag is true then the analysis results could be more unsound, but this
+     * may be necessary to compare to other analyses.
+     */
+    private static boolean disableSignatures = false;
+    /**
+     * Resolved class for java.lang.Class
+     */
+    private static IClass classClass;
+    /**
+     * Whether to disable the programmatic signature for Object.clone() and array clone
+     */
+    public static boolean disableObjectClone = false;
+    public static String entryPoint;
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -151,21 +172,28 @@ public class AnalysisUtil {
      * @param classPath Java class path to load class filed from with entries separated by ":"
      * @param entryPoint entry point main method, e.g mypackage.mysubpackage.MyClass
      * @param outputDirectory directory to put outputfiles into
+     * @param disableSignatures Whether signatures should be used. If this flag is true then the analysis results could
+     *            be more unsound, but this may be necessary to compare to other analyses.
+     * @param disableObjectClone Whether to disable the programmatic signature for Object.clone() and array clone
      *
      * @throws IOException Thrown when the analysis scope is invalid
      * @throws ClassHierarchyException Thrown by WALA during class hierarchy construction, if there are issues with the
      *             class path and for other reasons see {@link ClassHierarchy}
      */
-    public static void init(String classPath, String entryPoint, String outputDirectory) throws IOException,
-                                                                                        ClassHierarchyException {
-
+    public static void init(String classPath, String entryPoint, String outputDirectory, int numThreads,
+                            boolean disableSignatures, boolean disableObjectClone) throws IOException,
+                                                                                  ClassHierarchyException {
+        AnalysisUtil.entryPoint = entryPoint;
+        AnalysisUtil.numThreads = numThreads;
         AnalysisUtil.outputDirectory = outputDirectory;
+        AnalysisUtil.disableSignatures = disableSignatures;
+        AnalysisUtil.disableObjectClone = disableObjectClone;
+
         AnalysisUtil.cache = new AnalysisCache();
 
-
         AnalysisUtil.scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
-                                                                EXCLUSIONS_FILE,
-                                                                AnalysisUtil.class.getClassLoader());
+                                                               EXCLUSIONS_FILE,
+                                                               AnalysisUtil.class.getClassLoader());
         System.err.println("CLASSPATH=" + classPath);
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
 
@@ -202,7 +230,8 @@ public class AnalysisUtil {
         IMethod m = cha.resolveMethod(systemClass, arrayCopy);
         if (getIR(m) == null) {
             System.err.println("WARNING: cannot resolve signatures. Ensure \"classes/signatures\" is on the analysis classpath set with \"-cp\".");
-        } else {
+        }
+        else {
             System.err.println("Signatures: ENABLED");
         }
     }
@@ -233,6 +262,7 @@ public class AnalysisUtil {
         objectClass = cha.lookupClass(TypeReference.JavaLangObject);
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
         errorClass = cha.lookupClass(TypeReference.JavaLangError);
+        classClass = cha.lookupClass(TypeReference.JavaLangClass);
         TypeName privTN = TypeName.string2TypeName("Ljava/security/PrivilegedAction");
         TypeReference privTR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privTN);
         privilegedActionClass = cha.lookupClass(privTR);
@@ -289,9 +319,11 @@ public class AnalysisUtil {
      * @return the code for the given method, null for native methods
      */
     public static IR getIR(IMethod resolvedMethod) {
-        IR sigIR = signatures.getSignatureIR(resolvedMethod);
-        if (sigIR != null) {
-            return sigIR;
+        if (!disableSignatures) {
+            IR sigIR = signatures.getSignatureIR(resolvedMethod);
+            if (sigIR != null) {
+                return sigIR;
+            }
         }
 
         if (resolvedMethod.isNative()) {
@@ -342,7 +374,7 @@ public class AnalysisUtil {
     }
 
     /**
-     * Get the canonical class for java.lang.Objecy
+     * Get the canonical class for java.lang.Object
      *
      * @return class
      */
@@ -391,7 +423,7 @@ public class AnalysisUtil {
     }
 
     public static <W, T> ConcurrentHashMap<W, T> createConcurrentHashMap() {
-        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentHashMap<>(16, 0.75f, numThreads);
     }
 
     public static <T> Set<T> createConcurrentSet() {
@@ -409,6 +441,10 @@ public class AnalysisUtil {
 
     public static AnalysisScope getScope() {
         return scope;
+    }
+
+    public static IClass getClassClass() {
+        return classClass;
     }
 
 }

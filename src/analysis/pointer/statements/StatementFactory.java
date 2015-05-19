@@ -11,7 +11,6 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.registrar.FlowSensitiveStringLikeVariableFactory;
 import analysis.pointer.registrar.MethodSummaryNodes;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.strings.StringLikeVariable;
 
@@ -49,17 +48,14 @@ public class StatementFactory {
      *
      * @param v Points-to graph node for the assignee
      * @param a Points-to graph node for the array being accessed
-     * @param baseType base type of the array
      * @return statement to be processed during pointer analysis
      */
-    public ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, TypeReference baseType,
-                                              IMethod m) {
+    public ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, IMethod m) {
         assert v != null;
         assert a != null;
-        assert baseType != null;
         assert m != null;
 
-        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, m);
+        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, m);
         assert map.put(new StatementKey(v), s) == null;
         return s;
     }
@@ -99,18 +95,13 @@ public class StatementFactory {
      * @return statement to be processed during pointer analysis
      */
     public static ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
-                                                                   Set<IClass> notType, IMethod m,
-                                                                   boolean isToMethodSummaryVariable) {
+                                                                   Set<IClass> notType, IMethod m) {
         assert thrown != null;
         assert caught != null;
         assert notType != null;
         assert m != null;
 
-        ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown,
-                                                                          caught,
-                                                                          notType,
-                                                                          m,
-                                                                          isToMethodSummaryVariable);
+        ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown, caught, notType, m);
         return s;
 
     }
@@ -141,19 +132,17 @@ public class StatementFactory {
      *
      * @param array array assigned into
      * @param local assigned value
-     * @param baseType type of the array elements
      * @param m method the statement was created for
      * @return statement to be processed during pointer analysis
      */
-    public LocalToArrayStatement localToArrayContents(ReferenceVariable array, ReferenceVariable local,
-                                                      TypeReference baseType, IMethod m, SSAArrayStoreInstruction i) {
+    public LocalToArrayStatement localToArrayContents(ReferenceVariable array, ReferenceVariable local, IMethod m,
+                                                      SSAArrayStoreInstruction i) {
         assert array != null;
         assert local != null;
-        assert baseType != null;
         assert m != null;
         assert i != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(array, local, baseType, m);
+        LocalToArrayStatement s = new LocalToArrayStatement(array, local, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
         assert map.put(new StatementKey(array, local, i), s) == null;
         return s;
@@ -190,13 +179,12 @@ public class StatementFactory {
      * @param m method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, IMethod m,
-                                              boolean rightIsMethodSummary) {
+    public LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, IMethod m) {
         assert left != null;
         assert right != null;
         assert m != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, false, rightIsMethodSummary);
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, false);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -214,7 +202,7 @@ public class StatementFactory {
         assert right != null;
         assert m != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true, false);
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -264,7 +252,7 @@ public class StatementFactory {
         assert innerArray != null;
         assert m != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, innerArray.getExpectedType(), m);
+        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, m);
         assert map.put(new StatementKey(outerArray, innerArray), s) == null;
         return s;
     }
@@ -540,20 +528,17 @@ public class StatementFactory {
      * @param receiver Receiver of the call
      * @param actuals Actual arguments to the call
      * @param callerException Node representing the exception thrown by this call (if any)
-     * @param rvFactory factory used to find callee summary nodes
      * @return statement to be processed during pointer analysis
      */
     public PointsToStatement virtualCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                          ReferenceVariable result, ReferenceVariable receiver,
-                                         List<ReferenceVariable> actuals, ReferenceVariable callerException,
-                                         ReferenceVariableFactory rvFactory) {
+                                         List<ReferenceVariable> actuals, ReferenceVariable callerException) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
         assert receiver != null;
         assert actuals != null;
         assert callerException != null;
-        assert rvFactory != null;
 
         PointsToStatement s;
 
@@ -561,15 +546,9 @@ public class StatementFactory {
             s = new ClassMethodInvocationStatement(callSite, caller, result, receiver, actuals, callerException);
         }
         else {
-            s = new VirtualCallStatement(callSite,
-                                         caller,
-                                         callee,
-                                         result,
-                                         receiver,
-                                         actuals,
-                                         callerException,
-                                         rvFactory);
+            s = new VirtualCallStatement(callSite, caller, callee, result, receiver, actuals, callerException);
         }
+
         assert map.put(new StatementKey(callSite, caller, callee, result, receiver, actuals, callerException), s) == null;
         return s;
     }
@@ -586,7 +565,8 @@ public class StatementFactory {
         return new LocalToLocalString(left, right, method);
     }
 
-    public StringStatement fieldToLocalString(StringLikeVariable svv, ReferenceVariable o, FieldReference f, IMethod method) {
+    public StringStatement fieldToLocalString(StringLikeVariable svv, ReferenceVariable o, FieldReference f,
+                                              IMethod method) {
         assert svv != null;
         assert o != null;
         assert f != null;
@@ -641,16 +621,11 @@ public class StatementFactory {
                                                                   svreceiverDef,
                                                                   svarguments));
 
-        return new StringMethodCall(method,
-                                    declaredTarget,
-                                    svresult,
-                                    svreceiverUse,
-                                    svreceiverDef,
-                                    svarguments);
+        return new StringMethodCall(method, declaredTarget, svresult, svreceiverUse, svreceiverDef, svarguments);
     }
 
-    public StringStatement phiToLocalString(StringLikeVariable svassignee, List<StringLikeVariable> svuses, IMethod method,
-                                            PrettyPrinter pp) {
+    public StringStatement phiToLocalString(StringLikeVariable svassignee, List<StringLikeVariable> svuses,
+                                            IMethod method, PrettyPrinter pp) {
         assert svassignee != null;
         assert svuses != null;
         assert method != null;
@@ -660,8 +635,8 @@ public class StatementFactory {
         return new PhiToLocalStringStatement(svassignee, svuses, method);
     }
 
-    public StringStatement localToFieldString(StringLikeVariable svvDef, StringLikeVariable svvUse, ReferenceVariable o,
-                                              FieldReference f, IMethod method, SSAInstruction i) {
+    public StringStatement localToFieldString(StringLikeVariable svvDef, StringLikeVariable svvUse,
+                                              ReferenceVariable o, FieldReference f, IMethod method, SSAInstruction i) {
         assert svvDef != null;
         assert svvUse != null;
         assert o != null;
@@ -714,8 +689,8 @@ public class StatementFactory {
     public StringStatement staticOrSpecialMethodCallString(SSAInstruction i,
                                                            IMethod method,
                                                            List<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters,
-                                                           StringLikeVariable formalReturn, StringLikeVariable actualReturn,
-                                                           IMethod targetMethod) {
+                                                           StringLikeVariable formalReturn,
+                                                           StringLikeVariable actualReturn, IMethod targetMethod) {
         assert i != null;
         /* NB: both returnedVariable and returnToVariable could be null. Nullness */
         /* indicates the return value is either ignored or not String-like */

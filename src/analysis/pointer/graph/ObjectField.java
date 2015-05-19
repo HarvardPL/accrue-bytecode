@@ -3,13 +3,16 @@ package analysis.pointer.graph;
 import java.util.Collections;
 import java.util.Set;
 
+import analysis.AnalysisUtil;
 import analysis.pointer.graph.strings.StringFieldLocationReplica;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
 import analysis.pointer.graph.strings.StringSolutionReplica;
 
+import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
+
 
 /**
  * Point-to graph node representing a non-static field of an object
@@ -22,13 +25,18 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionRepli
     private final InstanceKey receiver;
 
     /**
+     * Name of the declaring class
+     */
+    private final IClass declaringClass;
+
+    /**
      * Name of the field
      */
     private final String fieldName;
     /**
      * Type of the field
      */
-    private final TypeReference expectedType;
+    private final IClass expectedType;
     /**
      * Hash code computed once
      */
@@ -41,12 +49,13 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionRepli
      * @param fieldName name of the field
      * @param expectedType type of the field
      */
-    public ObjectField(InstanceKey receiver, String fieldName, TypeReference expectedType) {
+    public ObjectField(InstanceKey receiver, IClass declaringClass, String fieldName, IClass expectedType) {
         assert receiver != null;
         assert fieldName != null;
-        assert expectedType != null;
+        assert expectedType != null : "No class for " + fieldName + " on " + receiver;
         this.receiver = receiver;
         this.fieldName = fieldName;
+        this.declaringClass = declaringClass;
         this.expectedType = expectedType;
         memoizedHashCode = computeHashCode();
     }
@@ -57,13 +66,16 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionRepli
      * @param receiver heap context for the receiver
      * @param fieldReference the field
      */
-    public ObjectField(InstanceKey receiver, FieldReference fieldReference) {
-        this(receiver, fieldReference.getName().toString(), fieldReference.getFieldType());
+    public ObjectField(InstanceKey receiver, IField ifield) {
+        this(receiver,
+             ifield.getDeclaringClass(),
+             ifield.getName().toString(),
+             AnalysisUtil.getClassHierarchy().lookupClass(ifield.getFieldTypeReference()));
     }
 
     @Override
     public TypeReference getExpectedType() {
-        return expectedType;
+        return expectedType.getReference();
     }
 
     @Override
@@ -74,10 +86,9 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionRepli
     public int computeHashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + (expectedType == null ? 0 : expectedType.hashCode());
-        result = prime * result + (fieldName == null ? 0 : fieldName.hashCode());
-        result = prime * result + memoizedHashCode;
-        result = prime * result + (receiver == null ? 0 : receiver.hashCode());
+        result = prime * result + ((this.declaringClass == null) ? 0 : this.declaringClass.hashCode());
+        result = prime * result + ((this.fieldName == null) ? 0 : this.fieldName.hashCode());
+        result = prime * result + ((this.receiver == null) ? 0 : this.receiver.hashCode());
         return result;
     }
 
@@ -94,27 +105,34 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionRepli
         if (obj == null) {
             return false;
         }
-        if (!(obj instanceof ObjectField)) {
+        if (getClass() != obj.getClass()) {
             return false;
         }
         ObjectField other = (ObjectField) obj;
-        if (!receiver.equals(other.receiver)) {
-            return false;
-        }
-        if (expectedType == null) {
-            if (other.expectedType != null) {
-                return false;
-            }
-        }
-        else if (!expectedType.equals(other.expectedType)) {
-            return false;
-        }
-        if (fieldName == null) {
+
+        if (this.fieldName == null) {
             if (other.fieldName != null) {
                 return false;
             }
         }
-        else if (!fieldName.equals(other.fieldName)) {
+        else if (!this.fieldName.equals(other.fieldName)) {
+            return false;
+        }
+        if (this.receiver == null) {
+            if (other.receiver != null) {
+                return false;
+            }
+        }
+        else if (!this.receiver.equals(other.receiver)) {
+            return false;
+        }
+
+        if (this.declaringClass == null) {
+            if (other.declaringClass != null) {
+                return false;
+            }
+        }
+        else if (!this.declaringClass.equals(other.declaringClass)) {
             return false;
         }
         return true;
@@ -132,9 +150,4 @@ public final class ObjectField implements PointsToGraphNode, StringSolutionRepli
     public String fieldName() {
         return fieldName;
     }
-
-    public TypeReference expectedType() {
-        return expectedType;
-    }
-
 }

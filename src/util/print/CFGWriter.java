@@ -87,7 +87,7 @@ public class CFGWriter {
 
         writeGraph(writer);
 
-        writer.write("\n};\n");
+        writer.write("\n}\n");
     }
 
     /**

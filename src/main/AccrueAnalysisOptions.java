@@ -23,12 +23,47 @@ public final class AccrueAnalysisOptions {
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
     /**
+     * Number of threads for multi-threaded pointer analysis.
+     */
+    @Parameter(
+        names = { "-numThreads" },
+        description = "Number of threads for the multi threaded pointer analysis. Default is the number of processors available to the JVM.")
+    private int numThreads = Runtime.getRuntime().availableProcessors();
+
+    /**
      * Run single-threaded pointer analysis.
      */
     @Parameter(
         names = { "-singleThreaded" },
         description = "Use single-threaded pointer analysis. Can be used to get the number of lines of code analyzed, but can be much slower.")
     private boolean singleThreadedPointerAnalysis = false;
+
+    /**
+     * Disable signatures for native and System methods. This is unsound, but may be necessary to compare to other
+     * points-to analyses
+     */
+    @Parameter(
+        names = { "-disableSignatures" },
+        description = "Disable signatures for native and System methods. This is unsound, but may be necessary to compare to other points-to analyses.")
+    private boolean disableSignatures = false;
+
+    /**
+     * Disable default signatures for native methods that do not have native signatures. This is less sound, but may be
+     * necessary to compare to other points-to analyses
+     */
+    @Parameter(
+        names = { "-disableDefaultNativeSignatures" },
+        description = "Disable default signatures for native methods that do not have native signatures. This is less sound, but may be necessary to compare to other points-to analyses")
+    private boolean disableDefaultNativeSignatures = false;
+
+    /**
+     * Disable default signatures for native methods that do not have native signatures. This is less sound, but may be
+     * necessary to compare to other points-to analyses
+     */
+    @Parameter(
+        names = { "-disableObjectClone" },
+        description = "Disable the programmatic signature for Object.clone() and array clone")
+    private boolean disableObjectClone = false;
 
     /**
      * Output folder default is "tests"
@@ -101,17 +136,6 @@ public final class AccrueAnalysisOptions {
     private String className;
 
     /**
-     * If true then register points-to statements during the points-to analysis. If false (or not set) then register
-     * them before the points-to analysis. The latter will register many more statements since there is less information
-     * about the types of the receivers of virtual methods, but is thread safe to use with the multithreaded points-to
-     * analysis.
-     */
-    @Parameter(
-        names = { "-online" },
-        description = "Whether to register the points-to statements during points-to analysis or before points-to analysis")
-    private boolean online = false;
-
-    /**
      * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
      */
@@ -155,6 +179,14 @@ public final class AccrueAnalysisOptions {
         names = { "-useSingleAllocForImmutableWrappers" },
         description = "If set then only one allocation site will be used for each type of immutable wrapper classes. These are: java.lang.String, all primitive wrapper classes, and BigDecimal and BigInteger (if not overridden). This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.")
     private boolean useSingleAllocForImmutableWrappers = false;
+
+    /**
+     * If true then only one allocation will be made for each class in the java swing API
+     */
+    @Parameter(
+        names = { "-useSingleAllocForSwing" },
+        description = "If set then only one allocation site will be used for each type in the Java Swing API. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.")
+    private boolean useSingleAllocForSwing = false;
 
     /**
      * Name of the analysis to be run
@@ -205,6 +237,12 @@ public final class AccrueAnalysisOptions {
             if (value.equals("nonnull")) {
                 return;
             }
+            if (value.equals("interval")) {
+                return;
+            }
+            if (value.equals("collect")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);
@@ -215,7 +253,7 @@ public final class AccrueAnalysisOptions {
      * Heap abstraction factory definition
      */
     @Parameter(names = { "-haf", "-heapAbstractionFactory" }, validateWith = AccrueAnalysisOptions.HafValidator.class, description = "The HeapAbstractionFactory class defining how analysis contexts are created.")
-    private String hafString = "InstanceInitFullObjSensitive x type(2,1)";
+    private String hafString = "type(2,1)";
     /**
      * {@link HeapAbstractionFactory} defining how analysis contexts are created
      */
@@ -284,10 +322,6 @@ public final class AccrueAnalysisOptions {
 
     public Integer getFileLevel() {
         return fileLevel;
-    }
-
-    public boolean registerOnline() {
-        return online;
     }
 
     public String getEntryPoint() {
@@ -829,5 +863,46 @@ public final class AccrueAnalysisOptions {
      */
     public boolean isTestMode() {
         return testMode;
+    }
+
+    /**
+     * Number of threads to use for the multi-threaded points-to analysis
+     *
+     * @return number of threads
+     */
+    public int getNumThreads() {
+        return this.numThreads;
+    }
+
+    /**
+     * Whether signatures should be used by analyses
+     *
+     * @return true if signatures should be disabled
+     */
+    public boolean shouldDisableSignatures() {
+        return this.disableSignatures;
+    }
+
+    /**
+     * Whether a default signature should be used for native methods without signatures. The default signature allocates
+     * and returns a new object of the return type.
+     *
+     * @return true if default signatures should be disabled
+     */
+    public boolean shouldDisableDefaultNativeSignatures() {
+        return this.disableDefaultNativeSignatures;
+    }
+
+    /**
+     * Whether the inline signature for Object.clone() and array clone should be disabled
+     *
+     * @return true if the inline signature for Object.clone() and array clone should be disabled
+     */
+    public boolean shouldDisableObjectClone() {
+        return this.disableObjectClone;
+    }
+
+    public boolean shouldUseSingleAllocForSwing() {
+        return useSingleAllocForSwing;
     }
 }

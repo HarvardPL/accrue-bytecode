@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -13,6 +14,7 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.strings.StringLikeVariable;
 
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -23,7 +25,7 @@ public class LocalToFieldStringStatement extends StringStatement {
     private final StringLikeVariable vUse;
     private final StringLikeVariable vDef;
     private final ReferenceVariable o;
-    private final FieldReference f;
+    private final IField f;
 
     public LocalToFieldStringStatement(StringLikeVariable vDef, StringLikeVariable vUse, ReferenceVariable o, FieldReference f,
                                        IMethod method) {
@@ -31,7 +33,7 @@ public class LocalToFieldStringStatement extends StringStatement {
         this.vUse = vUse;
         this.vDef = vDef;
         this.o = o;
-        this.f = f;
+        this.f = AnalysisUtil.getClassHierarchy().resolveField(f);
     }
 
     @Override

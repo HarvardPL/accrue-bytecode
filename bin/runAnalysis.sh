@@ -1,7 +1,8 @@
 #!/bin/sh
 
-vmargs="-Xmx14G -Xms14G -Xss30m"
+vmargs="-Xmx25G -Xms25G -Xss30m"
 dir=`dirname "$0"`/..
+timeout=-1
 
 if [ -z "$ACCRUE_BYTECODE" ]; then
   # check if we are already in the right folder
@@ -27,7 +28,11 @@ run() {
         echo java "$vmargs" "$cmmd" "$args"
     fi
     
-    eval java "$vmargs" "$cmmd" "$args"
+    if [ $timeout -gt 0 ]; then
+        eval bin/timeout3.sh -t $timeout java "$vmargs" "$cmmd" "$args"
+    else
+        eval java "$vmargs" "$cmmd" "$args"
+    fi
 }
 
 clean() {
@@ -74,6 +79,12 @@ while true; do
       # flag output directory as having been set
       outputDirSet=1
       args="$args '$1'"
+      shift
+      ;;
+    -to)
+      # set a timeout in seconds
+      shift
+      timeout=$1
       shift
       ;;
     *)

@@ -2,7 +2,6 @@ package analysis.pointer.registrar;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -53,6 +52,11 @@ public class ReferenceVariableFactory {
      */
     private final Map<TypeReference, ReferenceVariable> singletons =
             new LinkedHashMap<>();
+
+    /**
+     * One node per type for java.lang.Class
+     */
+    private final Map<TypeReference, ReferenceVariable> classSingletons = new LinkedHashMap<>();
 
     /**
      * Get the reference variable for the given local in the given method. The local should not have a primitive type or
@@ -151,6 +155,22 @@ public class ReferenceVariableFactory {
         ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type) + "(SINGLETON)", type, true);
         // These should only be created once assert that this is true
         assert singletons.put(type, rv) == null;
+        return rv;
+    }
+
+    /**
+     * Create a node for java.lang.Class per type.
+     *
+     * @param type type of the generic argument to java.lang.Class
+     * @return singleton reference variable for the given type
+     */
+    @SuppressWarnings("synthetic-access")
+    protected ReferenceVariable createClassReferenceVariable(TypeReference type) {
+        ReferenceVariable rv = new ReferenceVariable("java.lang.Class<" + PrettyPrinter.typeString(type) + ">",
+                                                     TypeReference.JavaLangClass,
+                                                     true);
+        // These should only be created once assert that this is true
+        assert classSingletons.put(type, rv) == null;
         return rv;
     }
 
@@ -261,7 +281,8 @@ public class ReferenceVariableFactory {
      *
      * @return Cache of reference variables for each local variable
      */
-    public ReferenceVariableCache getRvCache(Map<IMethod, VariableIndex> replacementMap, ConcurrentMap<IMethod, MethodSummaryNodes> methods) {
+    public ReferenceVariableCache getRvCache(Map<IMethod, VariableIndex> replacementMap,
+                                             Map<IMethod, MethodSummaryNodes> methods) {
         return new ReferenceVariableCache(locals, replacementMap, arrayContentsTemps, implicitThrows, staticFields, methods);
     }
 

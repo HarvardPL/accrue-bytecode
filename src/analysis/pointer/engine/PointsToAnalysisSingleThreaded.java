@@ -22,7 +22,6 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
@@ -48,6 +47,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.shrikeBT.IInstruction;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
  * Single-threaded implementation of a points-to graph solver. Given a set of
@@ -79,13 +79,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     @Override
     public PointsToGraph solve(StatementRegistrar registrar) {
-        return this.solveSmarter(registrar, false);
-    }
-
-    @Override
-    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
-        onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
-        return this.solveSmarter(onlineRegistrar, true);
+        return this.solveSmarter(registrar);
     }
 
     /**
@@ -128,7 +122,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            registrar will already be populated
      * @return Points-to graph
      */
-    public PointsToGraph solveSmarter(final StatementRegistrar registrar, final boolean registerOnline) {
+    @SuppressWarnings("synthetic-access")
+    public PointsToGraph solveSmarter(final StatementRegistrar registrar) {
         System.err.println("Starting points to engine using " + this.haf);
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;
@@ -158,24 +153,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void finishCollapseNode(int n, int rep) {
-                // remove the old dependency.
-                Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
-                if (deps != null) {
-                    PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
-                }
+            public void finishCollapseNode(int n) {
+                // remove the old dependencies.
+                PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
             }
 
             @Override
             public void recordNewContext(IMethod callee, Context calleeContext) {
-                if (registerOnline) {
-                    // Add statements for the given method to the registrar
-                    long start = System.currentTimeMillis();
-                    registrar.registerMethod(callee);
-                    long end = System.currentTimeMillis();
-                    PointsToAnalysisSingleThreaded.this.registrationTime += end - start;
-                }
-
                 updateLineCounter(callee);
 
                 for (ConstraintStatement stmt : registrar.getStatementsForMethod(callee)) {
@@ -261,22 +245,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        if (registerOnline) {
-            StatementListener stmtListener = new StatementListener() {
-
-                @Override
-                public void newStatement(PointsToStatement stmt) {
-                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
-                        // it's a new special instruction. Let's make sure it gets evaluated.
-                        noDeltaQueue.add(new StmtAndContext(stmt, haf.initialContext()));
-                    }
-
-                }
-
-            };
-            registrar.setStatementListener(stmtListener);
-        }
-
         this.lastTime = this.startTime;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()) {
@@ -351,9 +319,20 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
         System.err.println("   Finding more cycles...");
-        g.findCycles();
+        GraphDelta delta = g.findCycles();
+        assert delta == null || delta.isEmpty();
+
         System.err.println("   Cycles now removed " + g.cycleRemovalCount()
                            + " nodes");
+
+        System.err.println(g.numPointsToGraphNodes() + " PTG Nodes");
+        long num = 0;
+        IntMap<MutableIntSet> graph = g.getPointsToGraph();
+        IntIterator iter = graph.keyIterator();
+        while (iter.hasNext()) {
+            num += graph.get(iter.next()).size();
+        }
+        System.err.println(num + " PTG Edges");
 
         //        this.processAllStatements(g, registrar);
         g.constructionFinished();

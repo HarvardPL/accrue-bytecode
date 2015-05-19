@@ -1,7 +1,6 @@
 package analysis.pointer.duplicates;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -9,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 
 import util.OrderedPair;
-import analysis.AnalysisUtil;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
@@ -94,7 +92,7 @@ public class RemoveDuplicateStatements {
             for (ReferenceVariable rv : uses) {
                 Set<OrderedPair<PointsToStatement, Integer>> pairs = this.useIndex.get(rv);
                 if (pairs == null) {
-                    pairs = AnalysisUtil.createConcurrentSet();
+                    pairs = new LinkedHashSet<>();
                     this.useIndex.put(rv, pairs);
                 }
                 pairs.add(new OrderedPair<>(s, useNum));
@@ -329,8 +327,8 @@ public class RemoveDuplicateStatements {
                     continue;
                 }
 
-                Set<ReferenceVariable> uses1 = new HashSet<>(s1.getUses());
-                Set<ReferenceVariable> uses2 = new HashSet<>(s2.getUses());
+                Set<ReferenceVariable> uses1 = new LinkedHashSet<>(s1.getUses());
+                Set<ReferenceVariable> uses2 = new LinkedHashSet<>(s2.getUses());
                 if (uses1.containsAll(uses2) && uses2.containsAll(uses1)) {
                     if (DEBUG) {
                         System.err.println("REMOVING " + s2);

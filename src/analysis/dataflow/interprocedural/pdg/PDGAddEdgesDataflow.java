@@ -1006,7 +1006,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         }
 
         // Add edges into the array contents if the return is an array
-        if (arrayContents != null) {
+        if (arrayContents != null && !arrayContents.isEmpty()) {
             PDGNode contentsNode = PDGNodeFactory.findOrCreateOther(PointsToGraph.ARRAY_CONTENTS + " = SIGNATURE",
                                                                     PDGNodeType.OTHER_EXPRESSION,
                                                                     currentNode,

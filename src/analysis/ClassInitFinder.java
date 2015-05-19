@@ -13,6 +13,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
+import com.ibm.wala.ssa.SSALoadMetadataInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.TypeReference;
@@ -112,6 +113,10 @@ public class ClassInitFinder {
             }
         }
 
+        if (i instanceof SSALoadMetadataInstruction) {
+            return AnalysisUtil.getClassHierarchy().lookupClass(TypeReference.JavaLangClass);
+        }
+
         // Invocation of certain reflective methods in class Class and in
         // package java.lang.reflect also causes class or interface initialization.
         // TODO handle class initializers for reflection
@@ -132,12 +137,15 @@ public class ClassInitFinder {
             LinkedList<IMethod> inits = new LinkedList<>();
             // Need to also add clinit for any super classes
 
-            // Note that object doesn't have any clinit, and interface clinits are not called until a static field is
-            // actually accessed
-            while (!klass.isInterface() && !(klass == objectClass)) {
+            // Interface clinits are not called until a static field is actually accessed
+            while (!klass.isInterface()) {
                 if (klass.getClassInitializer() != null) {
                     // class has an initializer so add it
                     inits.addFirst(klass.getClassInitializer());
+                }
+                if (klass == objectClass) {
+                    // No super class for java.lang.Object
+                    break;
                 }
                 klass = klass.getSuperclass();
             }
