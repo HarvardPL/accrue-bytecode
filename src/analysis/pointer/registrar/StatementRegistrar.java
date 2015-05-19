@@ -23,6 +23,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
 import analysis.StringAndReflectiveUtil;
+import analysis.dataflow.flowsensitizer.EscapedStringBuilderVariable;
 import analysis.dataflow.flowsensitizer.StringBuilderFlowSensitizer;
 import analysis.dataflow.flowsensitizer.StringBuilderFlowSensitizer.Solution;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
@@ -759,7 +760,7 @@ public class StatementRegistrar {
 
                 this.addStringStatement(stmtFactory.localToLocalString(svreceiverDef, argument, ir.getMethod(), i));
             }
-            else {
+            else if (!im.isNative()) {
                 this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
             }
 
@@ -791,7 +792,7 @@ public class StatementRegistrar {
                 StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
                 this.addStringStatement(stmtFactory.getNameCall(ir.getMethod(), receiver, svresult));
             }
-            else {
+            else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
                 this.createVirtualMethodCallString(i, ir, stringVariableFactory, receiver, exception);
             }
 
@@ -1001,7 +1002,9 @@ public class StatementRegistrar {
 
         if (StringAndReflectiveUtil.isStringBuilderType(resultType) || StringAndReflectiveUtil.isStringType(resultType)) {
             StringLikeVariable sv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
-            this.addStringStatement(stmtFactory.newString(sv, ir.getMethod()));
+            if (!(sv instanceof EscapedStringBuilderVariable)) {
+                this.addStringStatement(stmtFactory.newString(sv, ir.getMethod()));
+            }
         }
     }
 
@@ -1045,15 +1048,21 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.phiToLocal(assignee, uses, ir.getMethod()));
 
         if (StringAndReflectiveUtil.isStringType(phiType) || StringAndReflectiveUtil.isStringBuilderType(phiType)) {
+            boolean everyVariableIsEscaped = true;
             StringLikeVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+            everyVariableIsEscaped &= svassignee instanceof EscapedStringBuilderVariable;
             List<StringLikeVariable> svuses = new ArrayList<>(i.getNumberOfUses());
             for (int j = 0; j < i.getNumberOfUses(); ++j) {
                 if (!types.getType(i.getUse(j)).equals(TypeReference.findOrCreate(ClassLoaderReference.Primordial,
                                                                                   "null"))) {
-                    svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
+                    StringLikeVariable temp = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
+                    everyVariableIsEscaped &= temp instanceof EscapedStringBuilderVariable;
+                    svuses.add(temp);
                 }
             }
-            this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
+            if (!everyVariableIsEscaped) {
+                this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
+            }
         }
     }
 
