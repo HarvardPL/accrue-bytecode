@@ -15,7 +15,6 @@ public class StringSolutionDelta {
         return new StringSolutionDelta(sc);
     }
 
-
     /* Constructors */
 
     public StringSolutionDelta(StringSolution sc) {
@@ -52,19 +51,6 @@ public class StringSolutionDelta {
     public Set<StringLikeLocationReplica> getUpdated() {
         return this.updated;
     }
-    //    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
-    //        Set<StmtAndContext> s = AnalysisUtil.createConcurrentSet();
-    //
-    //        for (StringSolutionVariable v : this.needDefs) {
-    //            s.addAll(this.sc.getDefinedBy(v));
-    //        }
-    //
-    //        for (StringSolutionVariable v : this.needUses) {
-    //            s.addAll(this.sc.getUsedBy(v));
-    //        }
-    //
-    //        return s;
-    //    }
 
     @Override
     public String toString() {
