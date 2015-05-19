@@ -3,7 +3,7 @@ package analysis.pointer.registrar.strings;
 import java.util.Collections;
 import java.util.Set;
 
-import analysis.pointer.graph.strings.EscapedStringLocationReplica;
+import analysis.pointer.graph.strings.EscapedStringBuilderLocationReplica;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -41,7 +41,7 @@ public class NullStringBuilderVariable implements StringLikeVariable {
 
     @Override
     public Set<StringLikeLocationReplica> getStringLocationReplicas(Context context) {
-        return Collections.singleton(EscapedStringLocationReplica.make());
+        return Collections.singleton(EscapedStringBuilderLocationReplica.make());
     }
 
     public static StringLikeVariable make(IMethod method, int varNum) {

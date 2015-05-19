@@ -3,7 +3,7 @@ package analysis.dataflow.flowsensitizer;
 import java.util.Set;
 
 import analysis.AnalysisUtil;
-import analysis.pointer.graph.strings.EscapedStringLocationReplica;
+import analysis.pointer.graph.strings.EscapedStringBuilderLocationReplica;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
 import analysis.pointer.registrar.strings.StringLikeVariable;
 
@@ -24,7 +24,7 @@ public class EscapedStringBuilderVariable implements StringLikeVariable {
     @Override
     public Set<StringLikeLocationReplica> getStringLocationReplicas(Context context) {
         Set<StringLikeLocationReplica> s = AnalysisUtil.createConcurrentSet();
-        s.add(EscapedStringLocationReplica.make());
+        s.add(EscapedStringBuilderLocationReplica.make());
         return s;
     }
 
