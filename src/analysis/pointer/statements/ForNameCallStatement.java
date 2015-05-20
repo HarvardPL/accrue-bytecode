@@ -140,6 +140,10 @@ public class ForNameCallStatement extends PointsToStatement {
         //        return uses;
     }
 
+    public List<StringLikeVariable> getStringUses() {
+        return this.actuals;
+    }
+
     @Override
     public ReferenceVariable getDef() {
         return this.result;

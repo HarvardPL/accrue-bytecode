@@ -46,7 +46,9 @@ import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
+import analysis.pointer.registrar.strings.StringLikeVariable;
 import analysis.pointer.statements.ConstraintStatement;
+import analysis.pointer.statements.ForNameCallStatement;
 import analysis.pointer.statements.StatementFactory;
 import analysis.string.AbstractString;
 import analysis.string.StringAnalysisResults;
@@ -552,6 +554,21 @@ public class AccrueAnalysisMain {
                 }
             }
         }
+
+        for (IMethod m : registrar.getRegisteredMethods()) {
+            for (ConstraintStatement s : registrar.getStatementsForMethod(m)) {
+                if (s instanceof ForNameCallStatement) {
+                    ForNameCallStatement fncs = (ForNameCallStatement) s;
+                    System.err.println("ForNameCallStatement " + fncs + " was called with these arguments:");
+                    for (StringLikeVariable sv : fncs.getStringUses()) {
+                        System.err.println("  " + sv + " ↦ ???");
+                    }
+                }
+            }
+        }
+        System.err.println("The string constraints were: ");
+        g.getStringConstraints().printStringConstraints();
+
         if (singleThreaded) {
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).lines2 + " lines of code analyzed.");
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).instructions + " instructions analyzed.");
