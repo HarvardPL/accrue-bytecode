@@ -188,6 +188,11 @@ public final class AccrueAnalysisOptions {
         description = "If set then only one allocation site will be used for each type in the Java Swing API. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.")
     private boolean useSingleAllocForSwing = false;
 
+    @Parameter(
+        names = { "-reflection" },
+        description = "If set then some reflective calls will be handled, including `forName` by way of a mutually recursive string analysis.")
+    private boolean performReflectionAnalysis = false;
+
     /**
      * Name of the analysis to be run
      */
@@ -905,4 +910,9 @@ public final class AccrueAnalysisOptions {
     public boolean shouldUseSingleAllocForSwing() {
         return useSingleAllocForSwing;
     }
+
+    public boolean performReflectionAnalysis() {
+        return performReflectionAnalysis;
+    }
+
 }

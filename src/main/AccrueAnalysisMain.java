@@ -132,6 +132,7 @@ public class AccrueAnalysisMain {
         boolean singleString = options.shouldUseSingleAllocForStrings();
         boolean singleWrappers = options.shouldUseSingleAllocForImmutableWrappers();
         boolean singleSwing = options.shouldUseSingleAllocForSwing();
+        boolean PERFORM_REFLECTION_ANALYSIS = options.performReflectionAnalysis();
 
         try {
             System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
@@ -167,7 +168,8 @@ public class AccrueAnalysisMain {
                                    classPath,
                                    entryPoint,
                                    fileLevel,
-                                   useDefaultNativeSignatures);
+                                   useDefaultNativeSignatures,
+                                   PERFORM_REFLECTION_ANALYSIS);
             break;
         case "pointsto2":
             results = generatePointsToGraph(outputLevel,
@@ -179,7 +181,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             //
             if (fileLevel > 0) {
@@ -206,7 +209,8 @@ public class AccrueAnalysisMain {
                                singleString,
                                singleWrappers,
                                singleSwing,
-                               useDefaultNativeSignatures);
+                               useDefaultNativeSignatures,
+                               PERFORM_REFLECTION_ANALYSIS);
             break;
         case "nonnull":
             results = generatePointsToGraph(outputLevel,
@@ -218,7 +222,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -236,7 +241,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -257,7 +263,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -309,7 +316,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -327,7 +335,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -343,7 +352,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
@@ -375,7 +385,8 @@ public class AccrueAnalysisMain {
                                             singleString,
                                             singleWrappers,
                                             singleSwing,
-                                            useDefaultNativeSignatures);
+                                            useDefaultNativeSignatures,
+                                            PERFORM_REFLECTION_ANALYSIS);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -519,7 +530,8 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForStrings,
                                                                                             boolean useSingleAllocForImmutableWrappers,
                                                                                             boolean useSingleAllocForSwing,
-                                                                                            boolean useDefaultNativeSignatures) {
+                                                                                            boolean useDefaultNativeSignatures,
+                                                                                            boolean PERFORM_REFLECTION_ANALYSIS) {
         System.err.println(AnalysisUtil.entryPoint);
         PointsToAnalysis analysis;
         HeapAbstractionFactory wrappedHaf = ReflectiveHAF.make(5, 5, haf);
@@ -540,7 +552,8 @@ public class AccrueAnalysisMain {
                                                                        useSingleAllocForStrings,
                                                                        useSingleAllocForImmutableWrappers,
                                                                        useSingleAllocForSwing,
-                                                                       useDefaultNativeSignatures);
+                                                                       useDefaultNativeSignatures,
+                                                                       PERFORM_REFLECTION_ANALYSIS);
         pass.run();
         registrar = pass.getRegistrar();
         PointsToAnalysis.outputLevel = outputLevel;
@@ -583,15 +596,15 @@ public class AccrueAnalysisMain {
                                                boolean useSingleAllocForPrimitiveArrays,
                                                boolean useSingleAllocForStrings,
                                                boolean useSingleAllocForImmutableWrappers,
-                                               boolean useSingleAllocForSwing, String classPath,
-                                               String entryPoint, int fileLevel, boolean useDefaultNativeSignatures)
-                                                                                                                    throws IOException,
-                                                                                                                    ClassHierarchyException {
+                                               boolean useSingleAllocForSwing, String classPath, String entryPoint,
+                                               int fileLevel, boolean useDefaultNativeSignatures,
+                                               boolean PERFORM_REFLECTION_ANALYSIS) throws IOException,
+                                                                                   ClassHierarchyException {
         // Set up WALA's points-to analysis
         AnalysisCache cache = new AnalysisCache();
         AnalysisScope scope = AnalysisScopeReader.readJavaScope(AnalysisUtil.PRIMORDIAL_FILENAME,
-                                                        AnalysisUtil.EXCLUSIONS_FILE,
-                                                        AnalysisUtil.class.getClassLoader());
+                                                                AnalysisUtil.EXCLUSIONS_FILE,
+                                                                AnalysisUtil.class.getClassLoader());
         System.err.println("CLASSPATH=" + classPath);
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
         ClassHierarchy cha = ClassHierarchy.make(scope);
@@ -603,8 +616,9 @@ public class AccrueAnalysisMain {
         }
         else {
             // Add L to the name to indicate that this is a class name
-            entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
-                    + entryPoint.replace(".", "/"));
+            entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope,
+                                                                                   cha,
+                                                                                   "L" + entryPoint.replace(".", "/"));
         }
 
         AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
@@ -647,7 +661,8 @@ public class AccrueAnalysisMain {
                                                                                                useSingleAllocForStrings,
                                                                                                useSingleAllocForImmutableWrappers,
                                                                                                useSingleAllocForSwing,
-                                                                                               useDefaultNativeSignatures);
+                                                                                               useDefaultNativeSignatures,
+                                                                                               PERFORM_REFLECTION_ANALYSIS);
                 PointsToGraph g = out.fst();
                 HafCallGraph.dumpCallGraphToFile("walaCallGraph", false, cg);
                 HafCallGraph.dumpCallGraphToFile("ourCallGraph", false, g.getCallGraph());
@@ -827,11 +842,11 @@ public class AccrueAnalysisMain {
      *            other signature
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
-                                           String outputDir, boolean singleThreaded,
-                                           boolean useSingleAllocForGenEx, boolean useSingleAllocForThrowable,
+                                           String outputDir, boolean singleThreaded, boolean useSingleAllocForGenEx,
+                                           boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
                                            boolean useSingleAllocForImmutableWrappers, boolean useSingleAllocForSwing,
-                                           boolean useDefaultNativeSignatures) {
+                                           boolean useDefaultNativeSignatures, boolean PERFORM_REFLECTION_ANALYSIS) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
                                                                                            singleThreaded,
@@ -841,7 +856,8 @@ public class AccrueAnalysisMain {
                                                                                            useSingleAllocForStrings,
                                                                                            useSingleAllocForImmutableWrappers,
                                                                                            useSingleAllocForSwing,
-                                                                                           useDefaultNativeSignatures);
+                                                                                           useDefaultNativeSignatures,
+                                                                                           PERFORM_REFLECTION_ANALYSIS);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {

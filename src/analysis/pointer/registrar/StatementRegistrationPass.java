@@ -38,9 +38,9 @@ public class StatementRegistrationPass {
 
     /**
      * Create a pass which will generate points-to statements
-     * 
+     *
      * @param factory factory used to create points-to statements
-     * 
+     *
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -65,8 +65,8 @@ public class StatementRegistrationPass {
     public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
                                      boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
                                      boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
-                                     boolean useSingleAllocForSwing,
-                                     boolean useDefaultNativeSignatures) {
+                                     boolean useSingleAllocForSwing, boolean useDefaultNativeSignatures,
+                                     boolean PERFORM_REFLECTION_ANALYSIS) {
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
                                            useSingleAllocForThrowable,
@@ -74,7 +74,8 @@ public class StatementRegistrationPass {
                                            useSingleAllocForStrings,
                                            useSingleAllocForImmutableWrappers,
                                            useSingleAllocForSwing,
-                                           useDefaultNativeSignatures);
+                                           useDefaultNativeSignatures,
+                                           PERFORM_REFLECTION_ANALYSIS);
     }
 
     /**

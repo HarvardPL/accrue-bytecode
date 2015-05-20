@@ -168,6 +168,7 @@ public class StatementRegistrar {
     private final Map<IMethod, VariableIndex> replacedVariableMap = new LinkedHashMap<>();
 
     private final Map<IMethod, FlowSensitiveStringLikeVariableFactory> stringVariableFactoryMap = new HashMap<>();
+    private final boolean PERFORM_REFLECTION_ANALYSIS;
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -198,8 +199,8 @@ public class StatementRegistrar {
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
                               boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
-                              boolean useSingleAllocForSwing,
-                              boolean useDefaultNativeSignatures) {
+                              boolean useSingleAllocForSwing, boolean useDefaultNativeSignatures,
+                              boolean PERFORM_REFLECTION_ANALYSIS) {
         this.methods = new LinkedHashMap<>();
         this.statementsForMethod = new LinkedHashMap<>();
         this.singletonReferenceVariables = new LinkedHashMap<>();
@@ -225,6 +226,7 @@ public class StatementRegistrar {
                 + this.useSingleAllocForImmutableWrappers);
         this.useSingleAllocForSwing = useSingleAllocForSwing;
         System.err.println("Singleton allocation site per Swing library type: " + this.useSingleAllocForSwing);
+        this.PERFORM_REFLECTION_ANALYSIS = PERFORM_REFLECTION_ANALYSIS;
     }
 
     /**
@@ -253,7 +255,10 @@ public class StatementRegistrar {
             TypeRepository types = new TypeRepository(ir);
             PrettyPrinter pp = new PrettyPrinter(ir);
 
-            FlowSensitiveStringLikeVariableFactory stringVariableFactory = getOrCreateStringVariableFactory(m);
+            FlowSensitiveStringLikeVariableFactory stringVariableFactory = null;
+            if (PERFORM_REFLECTION_ANALYSIS) {
+                stringVariableFactory = getOrCreateStringVariableFactory(m);
+            }
 
             // Add edges from formal summary nodes to the local variables representing the method parameters
             this.registerFormalAssignments(ir, this.rvFactory, pp);
@@ -513,12 +518,14 @@ public class StatementRegistrar {
         FieldReference f = i.getDeclaredField();
         this.addStatement(stmtFactory.fieldToLocal(v, o, f, ir.getMethod()));
 
-        if (StringAndReflectiveUtil.isStringBuilderType(resultType)) {
-            // it escaped
-        }
-        else if (StringAndReflectiveUtil.isStringType(resultType)) {
-            StringLikeVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
-            this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
+        if (PERFORM_REFLECTION_ANALYSIS) {
+            if (StringAndReflectiveUtil.isStringBuilderType(resultType)) {
+                // it escaped
+            }
+            else if (StringAndReflectiveUtil.isStringType(resultType)) {
+                StringLikeVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+                this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
+            }
         }
     }
 
@@ -541,15 +548,17 @@ public class StatementRegistrar {
         ReferenceVariable f = rvFactory.getOrCreateStaticField(i.getDeclaredField());
         this.addStatement(stmtFactory.staticFieldToLocal(v, f, ir.getMethod()));
 
-        if (StringAndReflectiveUtil.isStringBuilderType(resultType)) {
-            // it escaped
-        }
-        else if (StringAndReflectiveUtil.isStringType(resultType)) {
-            StringLikeVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
-            StringLikeVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
-            this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, i.getDeclaredField()
-                                                                                    .getDeclaringClass()
-                                                                                    .toString(), ir.getMethod()));
+        if (PERFORM_REFLECTION_ANALYSIS) {
+            if (StringAndReflectiveUtil.isStringBuilderType(resultType)) {
+                // it escaped
+            }
+            else if (StringAndReflectiveUtil.isStringType(resultType)) {
+                StringLikeVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+                StringLikeVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
+                this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, i.getDeclaredField()
+                                                                                        .getDeclaringClass()
+                                                                                        .toString(), ir.getMethod()));
+            }
         }
     }
 
@@ -574,13 +583,15 @@ public class StatementRegistrar {
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), receiverType, ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToField(o, f, v, ir.getMethod(), i));
 
-        if (StringAndReflectiveUtil.isStringBuilderType(valueType)) {
-            // it escaped
-        }
-        else if (StringAndReflectiveUtil.isStringType(valueType)) {
-            StringLikeVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
-            StringLikeVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
-            this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod(), i));
+        if (PERFORM_REFLECTION_ANALYSIS) {
+            if (StringAndReflectiveUtil.isStringBuilderType(valueType)) {
+                // it escaped
+            }
+            else if (StringAndReflectiveUtil.isStringType(valueType)) {
+                StringLikeVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
+                StringLikeVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
+                this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod(), i));
+            }
         }
     }
 
@@ -602,14 +613,16 @@ public class StatementRegistrar {
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), valueType, ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToStaticField(f, v, ir.getMethod(), i));
 
-        if (StringAndReflectiveUtil.isStringBuilderType(valueType)) {
-            // it escaped
-        }
-        else if (StringAndReflectiveUtil.isStringLikeType(valueType)
-                && StringAndReflectiveUtil.isStringLikeType(i.getDeclaredFieldType())) {
-            StringLikeVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
-            StringLikeVariable svvuse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
-            this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svvuse, ir.getMethod()));
+        if (PERFORM_REFLECTION_ANALYSIS) {
+            if (StringAndReflectiveUtil.isStringBuilderType(valueType)) {
+                // it escaped
+            }
+            else if (StringAndReflectiveUtil.isStringLikeType(valueType)
+                    && StringAndReflectiveUtil.isStringLikeType(i.getDeclaredFieldType())) {
+                StringLikeVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
+                StringLikeVariable svvuse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
+                this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svvuse, ir.getMethod()));
+            }
         }
     }
 
@@ -692,39 +705,40 @@ public class StatementRegistrar {
                                                      actuals,
                                                      exception,
                                                      calleeSummary));
+            if (PERFORM_REFLECTION_ANALYSIS) {
+                if (ForNameCallStatement.isForNameCall(i)) {
+                    List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
+                    for (int j = 0; j < i.getNumberOfParameters(); ++j) {
+                        svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
+                    }
+                    this.addStatement(stmtFactory.forNameCall(i.getCallSite(),
+                                                              ir.getMethod(),
+                                                              i.getDeclaredTarget(),
+                                                              result,
+                                                              svarguments));
 
-            if (ForNameCallStatement.isForNameCall(i)) {
-                List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
-                for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
                 }
-                this.addStatement(stmtFactory.forNameCall(i.getCallSite(),
-                                                          ir.getMethod(),
-                                                          i.getDeclaredTarget(),
-                                                          result,
-                                                          svarguments));
-
-            }
-            else if (GetPropertyStatement.isGetPropertyCall(i)) {
-                List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
-                for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
+                else if (GetPropertyStatement.isGetPropertyCall(i)) {
+                    List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
+                    for (int j = 0; j < i.getNumberOfParameters(); ++j) {
+                        svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
+                    }
+                    StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalUse(i, i.getReturnValue(0));
+                    this.addStringStatement(stmtFactory.getPropertyCall(i.getCallSite(),
+                                                                        ir.getMethod(),
+                                                                        i.getDeclaredTarget(),
+                                                                        svresult,
+                                                                        svarguments));
                 }
-                StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalUse(i, i.getReturnValue(0));
-                this.addStringStatement(stmtFactory.getPropertyCall(i.getCallSite(),
-                                                                    ir.getMethod(),
-                                                                    i.getDeclaredTarget(),
-                                                                    svresult,
-                                                                    svarguments));
-            }
-            else if (StringAndReflectiveUtil.isValueOf(i.getDeclaredTarget())
-                    && StringAndReflectiveUtil.isStringLikeType(types.getType(i.getUse(0)))) {
-                StringLikeVariable left = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
-                StringLikeVariable right = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(0));
-                this.addStringStatement(stmtFactory.localToLocalString(left, right, ir.getMethod(), i));
-            }
-            else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
-                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
+                else if (StringAndReflectiveUtil.isValueOf(i.getDeclaredTarget())
+                        && StringAndReflectiveUtil.isStringLikeType(types.getType(i.getUse(0)))) {
+                    StringLikeVariable left = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+                    StringLikeVariable right = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(0));
+                    this.addStringStatement(stmtFactory.localToLocalString(left, right, ir.getMethod(), i));
+                }
+                else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
+                    this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
+                }
             }
         }
         else if (i.isSpecial()) {
@@ -747,21 +761,23 @@ public class StatementRegistrar {
                                                       actuals,
                                                       exception,
                                                       calleeSummary));
-            IMethod im = StringAndReflectiveUtil.methodReferenceToIMethod(i.getDeclaredTarget());
-            if (StringAndReflectiveUtil.isStringInit0Method(im)
-                    || StringAndReflectiveUtil.isStringBuilderInit0Method(im)) {
-                StringLikeVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
+            if (PERFORM_REFLECTION_ANALYSIS) {
+                IMethod im = StringAndReflectiveUtil.methodReferenceToIMethod(i.getDeclaredTarget());
+                if (StringAndReflectiveUtil.isStringInit0Method(im)
+                        || StringAndReflectiveUtil.isStringBuilderInit0Method(im)) {
+                    StringLikeVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
 
-                this.addStringStatement(stmtFactory.stringInit0(i.getCallSite(), ir.getMethod(), svreceiverDef));
-            }
-            else if (StringAndReflectiveUtil.isStringBuilderInit1Method(im)) {
-                StringLikeVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
-                StringLikeVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(1));
+                    this.addStringStatement(stmtFactory.stringInit0(i.getCallSite(), ir.getMethod(), svreceiverDef));
+                }
+                else if (StringAndReflectiveUtil.isStringBuilderInit1Method(im)) {
+                    StringLikeVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
+                    StringLikeVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(1));
 
-                this.addStringStatement(stmtFactory.localToLocalString(svreceiverDef, argument, ir.getMethod(), i));
-            }
-            else if (!im.isNative()) {
-                this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
+                    this.addStringStatement(stmtFactory.localToLocalString(svreceiverDef, argument, ir.getMethod(), i));
+                }
+                else if (!im.isNative()) {
+                    this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
+                }
             }
 
         }
@@ -771,30 +787,6 @@ public class StatementRegistrar {
                 // Sometimes the receiver is a null constant
                 return;
             }
-            if (StringAndReflectiveUtil.isStringMethod(i.getDeclaredTarget())) {
-                StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
-                StringLikeVariable svreceiverUse = stringVariableFactory.getOrCreateLocalUse(i, i.getReceiver());
-                StringLikeVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
-                List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
-                for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
-                }
-                this.addStringStatement(stmtFactory.stringMethodCall(i.getCallSite(),
-                                                                     ir.getMethod(),
-                                                                     i.getDeclaredTarget(),
-                                                                     svresult,
-                                                                     svreceiverUse,
-                                                                     svreceiverDef,
-                                                                     svarguments,
-                                                                     stringVariableFactory));
-            }
-            else if (StringAndReflectiveUtil.isGetNameMethod(i.getDeclaredTarget())) {
-                StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
-                this.addStringStatement(stmtFactory.getNameCall(ir.getMethod(), receiver, svresult));
-            }
-            else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
-                this.createVirtualMethodCallString(i, ir, stringVariableFactory, receiver, exception);
-            }
 
             this.addStatement(stmtFactory.virtualCall(i.getCallSite(),
                                                       ir.getMethod(),
@@ -803,6 +795,33 @@ public class StatementRegistrar {
                                                       receiver,
                                                       actuals,
                                                       exception));
+
+            if (PERFORM_REFLECTION_ANALYSIS) {
+                if (StringAndReflectiveUtil.isStringMethod(i.getDeclaredTarget())) {
+                    StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
+                    StringLikeVariable svreceiverUse = stringVariableFactory.getOrCreateLocalUse(i, i.getReceiver());
+                    StringLikeVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
+                    List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
+                    for (int j = 0; j < i.getNumberOfParameters(); ++j) {
+                        svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j)));
+                    }
+                    this.addStringStatement(stmtFactory.stringMethodCall(i.getCallSite(),
+                                                                         ir.getMethod(),
+                                                                         i.getDeclaredTarget(),
+                                                                         svresult,
+                                                                         svreceiverUse,
+                                                                         svreceiverDef,
+                                                                         svarguments,
+                                                                         stringVariableFactory));
+                }
+                else if (StringAndReflectiveUtil.isGetNameMethod(i.getDeclaredTarget())) {
+                    StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
+                    this.addStringStatement(stmtFactory.getNameCall(ir.getMethod(), receiver, svresult));
+                }
+                else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
+                    this.createVirtualMethodCallString(i, ir, stringVariableFactory, receiver, exception);
+                }
+            }
         }
         else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
@@ -1000,10 +1019,13 @@ public class StatementRegistrar {
                                                             pp.getLineNumber(i)));
         }
 
-        if (StringAndReflectiveUtil.isStringBuilderType(resultType) || StringAndReflectiveUtil.isStringType(resultType)) {
-            StringLikeVariable sv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
-            if (!(sv instanceof EscapedStringBuilderVariable)) {
-                this.addStringStatement(stmtFactory.newString(sv, ir.getMethod()));
+        if (PERFORM_REFLECTION_ANALYSIS) {
+            if (StringAndReflectiveUtil.isStringBuilderType(resultType)
+                    || StringAndReflectiveUtil.isStringType(resultType)) {
+                StringLikeVariable sv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+                if (!(sv instanceof EscapedStringBuilderVariable)) {
+                    this.addStringStatement(stmtFactory.newString(sv, ir.getMethod()));
+                }
             }
         }
     }
@@ -1047,21 +1069,23 @@ public class StatementRegistrar {
         }
         this.addStatement(stmtFactory.phiToLocal(assignee, uses, ir.getMethod()));
 
-        if (StringAndReflectiveUtil.isStringType(phiType) || StringAndReflectiveUtil.isStringBuilderType(phiType)) {
-            boolean everyVariableIsEscaped = true;
-            StringLikeVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
-            everyVariableIsEscaped &= svassignee instanceof EscapedStringBuilderVariable;
-            List<StringLikeVariable> svuses = new ArrayList<>(i.getNumberOfUses());
-            for (int j = 0; j < i.getNumberOfUses(); ++j) {
-                if (!types.getType(i.getUse(j)).equals(TypeReference.findOrCreate(ClassLoaderReference.Primordial,
-                                                                                  "null"))) {
-                    StringLikeVariable temp = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
-                    everyVariableIsEscaped &= temp instanceof EscapedStringBuilderVariable;
-                    svuses.add(temp);
+        if (PERFORM_REFLECTION_ANALYSIS) {
+            if (StringAndReflectiveUtil.isStringType(phiType) || StringAndReflectiveUtil.isStringBuilderType(phiType)) {
+                boolean everyVariableIsEscaped = true;
+                StringLikeVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+                everyVariableIsEscaped &= svassignee instanceof EscapedStringBuilderVariable;
+                List<StringLikeVariable> svuses = new ArrayList<>(i.getNumberOfUses());
+                for (int j = 0; j < i.getNumberOfUses(); ++j) {
+                    if (!types.getType(i.getUse(j)).equals(TypeReference.findOrCreate(ClassLoaderReference.Primordial,
+                                                                                      "null"))) {
+                        StringLikeVariable temp = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
+                        everyVariableIsEscaped &= temp instanceof EscapedStringBuilderVariable;
+                        svuses.add(temp);
+                    }
                 }
-            }
-            if (!everyVariableIsEscaped) {
-                this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
+                if (!everyVariableIsEscaped) {
+                    this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
+                }
             }
         }
     }
@@ -1069,8 +1093,8 @@ public class StatementRegistrar {
     /**
      * Load-metadata is used for .class access
      */
-    private void registerLoadMetadata(SSALoadMetadataInstruction i, IR ir,
-                                      ReferenceVariableFactory rvFactory, PrettyPrinter pprint) {
+    private void registerLoadMetadata(SSALoadMetadataInstruction i, IR ir, ReferenceVariableFactory rvFactory,
+                                      PrettyPrinter pprint) {
         // This is a call like Object.class that returns a Class object, until we handle reflection just allocate a singleton
         if (!i.getType().equals(TypeReference.JavaLangClass)) {
             throw new RuntimeException("Load metadata with a non-class target " + i);
@@ -1108,13 +1132,15 @@ public class StatementRegistrar {
         ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod()).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
 
-        if (StringAndReflectiveUtil.isStringBuilderType(ir.getMethod().getReturnType())) {
-            // it escapes
-        }
-        else if (StringAndReflectiveUtil.isStringType(ir.getMethod().getReturnType())) {
-            StringLikeVariable sv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult());
-            StringLikeVariable formalReturn = this.findOrCreateStringMethodSummary(ir.getMethod()).getRet();
-            this.addStringStatement(stmtFactory.localToLocalString(formalReturn, sv, ir.getMethod(), i));
+        if (PERFORM_REFLECTION_ANALYSIS) {
+            if (StringAndReflectiveUtil.isStringBuilderType(ir.getMethod().getReturnType())) {
+                // it escapes
+            }
+            else if (StringAndReflectiveUtil.isStringType(ir.getMethod().getReturnType())) {
+                StringLikeVariable sv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult());
+                StringLikeVariable formalReturn = this.findOrCreateStringMethodSummary(ir.getMethod()).getRet();
+                this.addStringStatement(stmtFactory.localToLocalString(formalReturn, sv, ir.getMethod(), i));
+            }
         }
     }
 
@@ -1242,6 +1268,7 @@ public class StatementRegistrar {
     }
 
     protected void addStringStatement(StringStatement s) {
+        assert PERFORM_REFLECTION_ANALYSIS;
         IMethod m = s.getMethod();
         Set<StringStatement> set = this.stringStatementsForMethod.get(m);
         if (set == null) {
@@ -1338,11 +1365,13 @@ public class StatementRegistrar {
                 // add points to statements to simulate the allocation
                 this.registerStringLiteral(newStringLit, use, ir.getMethod(), pp);
 
-                String stringLiteralString = ir.getSymbolTable().getStringValue(use);
-                StringLikeVariable stringLiteralVariable = stringVariableFactory.getOrCreateLocalUse(i, use);
-                this.addStringStatement(new StringLiteralStatement(ir.getMethod(),
-                                                                   stringLiteralVariable,
-                                                                   stringLiteralString));
+                if (PERFORM_REFLECTION_ANALYSIS) {
+                    String stringLiteralString = ir.getSymbolTable().getStringValue(use);
+                    StringLikeVariable stringLiteralVariable = stringVariableFactory.getOrCreateLocalUse(i, use);
+                    this.addStringStatement(new StringLiteralStatement(ir.getMethod(),
+                                                                       stringLiteralVariable,
+                                                                       stringLiteralString));
+                }
             }
         }
 
@@ -1454,8 +1483,7 @@ public class StatementRegistrar {
                                                                   AnalysisUtil.getClassClass(),
                                                                   this.entryPoint,
                                                                   "java.lang.Class<"
-                                                                          + PrettyPrinter.typeString(varType)
-                                                                          + ">");
+                                                                          + PrettyPrinter.typeString(varType) + ">");
             this.addStatement(stmt);
 
         }
