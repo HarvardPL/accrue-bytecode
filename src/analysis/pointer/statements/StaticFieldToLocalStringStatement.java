@@ -68,9 +68,6 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
 
         newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(vRVR, fRVR));
 
-        System.err.println("[WARNING][StaticFieldToLocalStringStatement] This is actually unsound because "
-                + "the static field may be mutated. This would be fixed by properly handling escaped strings");
-
         return newDelta;
     }
 

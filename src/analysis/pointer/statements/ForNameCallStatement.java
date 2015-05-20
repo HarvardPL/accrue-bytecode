@@ -113,7 +113,7 @@ public class ForNameCallStatement extends PointsToStatement {
     }
 
     private static void debugln(String s) {
-        System.err.println("[" + Thread.currentThread().getId() + "]" + s);
+        // System.err.println("[" + Thread.currentThread().getId() + "]" + s);
     }
 
     @Override

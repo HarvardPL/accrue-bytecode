@@ -162,7 +162,7 @@ public class GetPropertyStatement extends StringStatement {
     }
 
     private static void debugln(String s) {
-        System.err.println("[" + Thread.currentThread().getId() + "]" + s);
+        //System.err.println("[" + Thread.currentThread().getId() + "]" + s);
     }
 
     @Override

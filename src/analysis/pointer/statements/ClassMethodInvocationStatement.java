@@ -129,7 +129,7 @@ public class ClassMethodInvocationStatement extends
             }
             AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("getClass", JavaLangClassIClass, caller, null, // XXX: This is caused by duplication of getClass statements (i.e. Reflective and Regular)
                                                                      false);
-            System.err.println("[ClassMethodInvocationStatement.getClassRM] classes: " + classes);
+            // System.err.println("[ClassMethodInvocationStatement.getClassRM] classes: " + classes);
             changed.combine(g.addEdge(resultReplica,
                                       ((ReflectiveHAF) haf).recordReflective(((ReflectiveHAF) haf).getAClassSet(classes),
                                                                              asn,
@@ -244,7 +244,7 @@ public class ClassMethodInvocationStatement extends
                                                                                      null,
                                                                                      false);
                             InstanceKey newik = haf.record(asn, context);
-                            System.err.println("[ClassMethodInvocationStatement.newInstanceRM] class: " + klass);
+                            // System.err.println("[ClassMethodInvocationStatement.newInstanceRM] class: " + klass);
                             changed.combine(g.addEdge(resultReplica, newik));
                         }
                     }

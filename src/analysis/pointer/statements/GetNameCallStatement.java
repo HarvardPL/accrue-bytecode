@@ -76,10 +76,10 @@ public class GetNameCallStatement extends StringStatement {
                     }
                 });
 
-                System.err.println("[GetNameCallStatement] ___________________________");
-                System.err.println("[GetNameCallStatement] in method: " + this.getMethod());
-                System.err.println("[GetNameCallStatement] svr is: " + svr);
-                System.err.println("[GetNameCallStatement] getting names: " + strings);
+                //System.err.println("[GetNameCallStatement] ___________________________");
+                //System.err.println("[GetNameCallStatement] in method: " + this.getMethod());
+                //System.err.println("[GetNameCallStatement] svr is: " + svr);
+                //System.err.println("[GetNameCallStatement] getting names: " + strings);
 
                 changed.combine(g.stringSolutionVariableReplicaJoinAt(svr,
                                                                       ((ReflectiveHAF) haf).getAStringFromFiniteStringSet(strings)));
