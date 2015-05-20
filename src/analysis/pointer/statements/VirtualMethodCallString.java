@@ -58,12 +58,14 @@ public class VirtualMethodCallString extends MethodCallString {
 
         for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
-            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+            if (!callee.isNative()) {
+                MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context,
-                                                                                                          summary.getFormals()
-                                                                                                                 .get(pair.snd())));
+                for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                    writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context,
+                                                                                                              summary.getFormals()
+                                                                                                                     .get(pair.snd())));
+                }
             }
         }
 
@@ -78,17 +80,19 @@ public class VirtualMethodCallString extends MethodCallString {
 
         for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
-            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+            if (!callee.isNative()) {
+                MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                StringLikeVariableReplica argument = new StringLikeVariableReplica(context, pair.fst());
-                g.recordStringStatementUseDependency(argument, originator);
-            }
+                for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                    StringLikeVariableReplica argument = new StringLikeVariableReplica(context, pair.fst());
+                    g.recordStringStatementUseDependency(argument, originator);
+                }
 
-            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
-            if (actualReturn != null) {
-                StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
-                g.recordStringStatementUseDependency(formalReturnSVR, originator);
+                assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+                if (actualReturn != null) {
+                    StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
+                    g.recordStringStatementUseDependency(formalReturnSVR, originator);
+                }
             }
         }
 
@@ -102,20 +106,23 @@ public class VirtualMethodCallString extends MethodCallString {
 
         for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
-            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+            if (!callee.isNative()) {
+                MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                StringLikeVariableReplica parameter = new StringLikeVariableReplica(context, summary.getFormals()
-                                                                                                    .get(pair.snd()));
-                g.recordStringStatementDefineDependency(parameter, originator);
-            }
+                for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                    StringLikeVariableReplica parameter = new StringLikeVariableReplica(context,
+                                                                                        summary.getFormals()
+                                                                                               .get(pair.snd()));
+                    g.recordStringStatementDefineDependency(parameter, originator);
+                }
 
-            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null. summary is "
-                    + summary + " actualReturn is " + actualReturn;
-            if (actualReturn != null) {
-                StringLikeVariableReplica actualReturnSVR = new StringLikeVariableReplica(context, actualReturn);
+                assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null. summary is "
+                        + summary + " actualReturn is " + actualReturn;
+                if (actualReturn != null) {
+                    StringLikeVariableReplica actualReturnSVR = new StringLikeVariableReplica(context, actualReturn);
 
-                g.recordStringStatementDefineDependency(actualReturnSVR, originator);
+                    g.recordStringStatementDefineDependency(actualReturnSVR, originator);
+                }
             }
         }
 
@@ -130,18 +137,20 @@ public class VirtualMethodCallString extends MethodCallString {
 
         for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
-            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+            if (!callee.isNative()) {
+                MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                StringLikeVariableReplica argument = new StringLikeVariableReplica(context, pair.fst());
-                changes.combine(g.activateStringSolutionVariable(argument));
-            }
+                for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                    StringLikeVariableReplica argument = new StringLikeVariableReplica(context, pair.fst());
+                    changes.combine(g.activateStringSolutionVariable(argument));
+                }
 
-            assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
-            if (actualReturn != null) {
-                StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
+                assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+                if (actualReturn != null) {
+                    StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
 
-                changes.combine(g.activateStringSolutionVariable(formalReturnSVR));
+                    changes.combine(g.activateStringSolutionVariable(formalReturnSVR));
+                }
             }
         }
 
@@ -157,21 +166,23 @@ public class VirtualMethodCallString extends MethodCallString {
 
         for (InstanceKey ik : pti.pointsToIterable(receiverRVR, originator)) {
             IMethod callee = this.resolveMethod(ik.getConcreteType(), receiverRVR.getExpectedType());
-            MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
+            if (!callee.isNative()) {
+                MethodStringSummary summary = registrar.findOrCreateStringMethodSummary(callee);
 
-            ArrayList<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters = new ArrayList<>();
-            for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
-                OrderedPair<StringLikeVariable, StringLikeVariable> newpair = new OrderedPair<>(pair.fst(),
-                                                                                                summary.getFormals()
-                                                                                                       .get(pair.snd()));
-                stringArgumentAndParameters.add(newpair);
+                ArrayList<OrderedPair<StringLikeVariable, StringLikeVariable>> stringArgumentAndParameters = new ArrayList<>();
+                for (OrderedPair<StringLikeVariable, Integer> pair : this.stringArgumentAndParamNums) {
+                    OrderedPair<StringLikeVariable, StringLikeVariable> newpair = new OrderedPair<>(pair.fst(),
+                                                                                                    summary.getFormals()
+                                                                                                           .get(pair.snd()));
+                    stringArgumentAndParameters.add(newpair);
+                }
+
+                newDelta.combine(MethodCallString.processCall(this.actualReturn,
+                                                              summary.getRet(),
+                                                              stringArgumentAndParameters,
+                                                              context,
+                                                              g));
             }
-
-            newDelta.combine(MethodCallString.processCall(this.actualReturn,
-                                                          summary.getRet(),
-                                                          stringArgumentAndParameters,
-                                                          context,
-                                                          g));
         }
         return newDelta;
     }
