@@ -27,7 +27,7 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti,
                                        StmtAndContext originator, HeapAbstractionFactory haf,
                                        StatementRegistrar registrar) {
-        return g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.f));
+        return g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(haf.initialContext(), this.f));
     }
 
     @Override
@@ -43,7 +43,7 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringLikeVariableReplica fsvr = new StringLikeVariableReplica(context, this.f);
+        StringLikeVariableReplica fsvr = new StringLikeVariableReplica(haf.initialContext(), this.f);
 
         g.recordStringStatementDefineDependency(fsvr, originator);
     }
@@ -60,7 +60,7 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
         StringLikeVariableReplica svr = new StringLikeVariableReplica(context, this.v);
-        StringLikeVariableReplica fsvr = new StringLikeVariableReplica(context, this.f);
+        StringLikeVariableReplica fsvr = new StringLikeVariableReplica(haf.initialContext(), this.f);
 
         GraphDelta newDelta = new GraphDelta(g);
 

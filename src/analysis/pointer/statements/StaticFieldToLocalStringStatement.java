@@ -36,7 +36,7 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
     protected void registerReadDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                             PointsToIterable pti, StmtAndContext originator,
                                             StatementRegistrar registrar) {
-        StringLikeVariableReplica fRVR = new StringLikeVariableReplica(context, this.f);
+        StringLikeVariableReplica fRVR = new StringLikeVariableReplica(haf.initialContext(), this.f);
 
         g.recordStringStatementUseDependency(fRVR, originator);
     }
@@ -53,7 +53,7 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
     @Override
     protected GraphDelta activateReads(Context context, HeapAbstractionFactory haf, PointsToGraph g, PointsToIterable pti,
                                  StmtAndContext originator, StatementRegistrar registrar) {
-        StringLikeVariableReplica fRVR = new StringLikeVariableReplica(context, this.f);
+        StringLikeVariableReplica fRVR = new StringLikeVariableReplica(haf.initialContext(), this.f);
 
         return g.activateStringSolutionVariable(fRVR);
     }
@@ -62,7 +62,7 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
         StringLikeVariableReplica vRVR = new StringLikeVariableReplica(context, this.v);
-        StringLikeVariableReplica fRVR = new StringLikeVariableReplica(context, this.f);
+        StringLikeVariableReplica fRVR = new StringLikeVariableReplica(haf.initialContext(), this.f);
 
         GraphDelta newDelta = new GraphDelta(g);
 
