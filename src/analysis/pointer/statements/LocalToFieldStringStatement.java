@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -39,11 +38,8 @@ public class LocalToFieldStringStatement extends StringStatement {
     @Override
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
         ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
-        StringLikeVariableReplica vDefSVR = new StringLikeVariableReplica(context, this.vDef);
 
         boolean writersAreActive = false;
-
-        writersAreActive |= g.stringSolutionVariableReplicaIsActive(vDefSVR);
 
         for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
@@ -65,11 +61,7 @@ public class LocalToFieldStringStatement extends StringStatement {
     protected void registerWriteDependencies(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                              PointsToIterable pti, StmtAndContext originator,
                                              StatementRegistrar registrar) {
-        StringLikeVariableReplica vDefSVR = new StringLikeVariableReplica(context, this.vDef);
         ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
-
-        // XXX: Hack, we set the def to top to deal with string escape
-        g.recordStringStatementDefineDependency(vDefSVR, originator);
 
         for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
@@ -90,13 +82,9 @@ public class LocalToFieldStringStatement extends StringStatement {
     public GraphDelta updateSolution(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                      PointsToIterable pti, StatementRegistrar registrar, StmtAndContext originator) {
         StringLikeVariableReplica vUseSVR = new StringLikeVariableReplica(context, this.vUse);
-        StringLikeVariableReplica vDefSVR = new StringLikeVariableReplica(context, this.vDef);
         ReferenceVariableReplica oRVR = new ReferenceVariableReplica(context, this.o, haf);
 
         GraphDelta newDelta = new GraphDelta(g);
-
-        g.recordStringStatementDefineDependency(vDefSVR, originator);
-        g.recordStringStatementUseDependency(vUseSVR, originator);
 
         for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
@@ -105,8 +93,6 @@ public class LocalToFieldStringStatement extends StringStatement {
                 newDelta.combine(g.stringSolutionVariableReplicaUpperBounds(of, vUseSVR));
             }
         }
-        // XXX: Hack to deal with escape
-        newDelta.combine(g.stringSolutionVariableReplicaJoinAt(vDefSVR, ((ReflectiveHAF) haf).getAStringTop()));
 
         return newDelta;
     }
