@@ -1708,12 +1708,21 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     public GraphDelta stringSolutionVariableReplicaUpperBounds(StringSolutionReplica svr1, StringSolutionReplica svr2) {
+        // we duplicate the check from StringSolution here because it's ok to joinat
+        // an svr that is active, even if some of its individual locations are not active
+        assert stringSolutionVariableReplicaIsActive(svr1) && stringSolutionVariableReplicaIsActive(svr2) : svr1 + " "
+                + svr2;
+
         StringSolutionDelta d = new StringSolutionDelta(this.sc);
         for (StringLikeLocationReplica location1 : svr1.getStringLocations()) {
-            for (StringLikeLocationReplica location2 : svr2.getStringLocations()) {
-                //                System.err.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + svr1 + " ⊒ " + svr2 + " = "
-                //                        + this.getAStringFor(location2));
-                d.combine(this.sc.upperBounds(location1, location2));
+            if (stringSolutionVariableReplicaIsActive(location1)) {
+                for (StringLikeLocationReplica location2 : svr2.getStringLocations()) {
+                    //                System.err.println("[PointsToGraph] " + this.getAStringFor(location1) + " = " + svr1 + " ⊒ " + svr2 + " = "
+                    //                        + this.getAStringFor(location2));
+                    if (stringSolutionVariableReplicaIsActive(location2)) {
+                        d.combine(this.sc.upperBounds(location1, location2));
+                    }
+                }
             }
         }
         return new GraphDelta(this, d);
