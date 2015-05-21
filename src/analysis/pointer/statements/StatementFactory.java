@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -765,16 +766,16 @@ public class StatementFactory {
 
     }
 
-    /* void is the one element type, it only contains null */
-    private final Map<StatementKey, Void> stringStatementMap = new HashMap<>();
+    /* set of string statement keys we've seen before. */
+    private final Set<StatementKey> stringStatementMap = new HashSet<>();
 
     private boolean stringStatementNeverCreatedBefore(StatementKey statementKey) {
-        if (stringStatementMap.containsKey(statementKey)) {
+        if (stringStatementMap.contains(statementKey)) {
             System.err.println("I already saw: " + statementKey);
             return false;
         }
         else {
-            stringStatementMap.put(statementKey, null);
+            stringStatementMap.add(statementKey);
             return true;
         }
     }
