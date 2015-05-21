@@ -282,7 +282,10 @@ public final class PointsToGraph implements PointsToIterable {
             rep = this.representative.get(n);
             x = this.getRepresentative(rep);
         }
-        assert !isCollapsedNode(rep);
+        // At this point here, to the best of our ability, rep should not be a collapsed node
+        // It is however possible that rep was collapsed, or that may happen in the near future.
+        // However, the cycle collapsing alogithm is designed so that this will not break correct
+        // functionality.
         return rep;
     }
 
