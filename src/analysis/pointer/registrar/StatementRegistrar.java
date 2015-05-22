@@ -734,6 +734,8 @@ public class StatementRegistrar {
                 System.err.println("REGISTERING: " + i);
                 System.err.println("isnative?: "
                         + AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative());
+                System.err.println("nullir? :"
+                        + AnalysisUtil.getIR(AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget())) != null);
             }
 
             if (PERFORM_REFLECTION_ANALYSIS) {
@@ -774,7 +776,7 @@ public class StatementRegistrar {
                     StringLikeVariable right = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(0));
                     this.addStringStatement(stmtFactory.localToLocalString(left, right, ir.getMethod(), i));
                 }
-                else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
+                else if (AnalysisUtil.getIR(AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget())) != null) {
                     this.createStaticOrSpecialMethodCallString(i,
                                                                ir.getMethod(),
                                                                stringVariableFactory,
