@@ -88,7 +88,8 @@ public class VirtualMethodCallString extends MethodCallString {
                     g.recordStringStatementUseDependency(argument, originator);
                 }
 
-                assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+                assert (actualReturn == null) || (actualReturn != null && summary.getRet() != null) : "if actual return is non-null then summary better be non-null. summary is "
+                        + summary + " actualReturn is " + actualReturn;
                 if (actualReturn != null) {
                     StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
                     g.recordStringStatementUseDependency(formalReturnSVR, originator);
@@ -116,7 +117,7 @@ public class VirtualMethodCallString extends MethodCallString {
                     g.recordStringStatementDefineDependency(parameter, originator);
                 }
 
-                assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null. summary is "
+                assert (actualReturn == null) || (actualReturn != null && summary.getRet() != null) : "if actual return is non-null then summary better be non-null. summary is "
                         + summary + " actualReturn is " + actualReturn;
                 if (actualReturn != null) {
                     StringLikeVariableReplica actualReturnSVR = new StringLikeVariableReplica(context, actualReturn);
@@ -145,7 +146,8 @@ public class VirtualMethodCallString extends MethodCallString {
                     changes.combine(g.activateStringSolutionVariable(argument));
                 }
 
-                assert (actualReturn == null) == (summary.getRet() == null) : "Should both be either null or non-null";
+                assert (actualReturn == null) || (actualReturn != null && summary.getRet() != null) : "if actual return is non-null then summary better be non-null. sumamry is "
+                        + summary + " actualReturn is " + actualReturn;
                 if (actualReturn != null) {
                     StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, summary.getRet());
 

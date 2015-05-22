@@ -3,6 +3,7 @@ package analysis.pointer.registrar.strings;
 import java.util.Collections;
 import java.util.Set;
 
+import analysis.StringAndReflectiveUtil;
 import analysis.pointer.graph.strings.StringLikeLocationReplica;
 import analysis.pointer.graph.strings.StringLocationReplica;
 
@@ -13,17 +14,23 @@ import com.ibm.wala.types.TypeReference;
 public class FieldStringVariable implements StringLikeVariable {
 
     private final IField f;
+    private final TypeReference type;
 
     /* Factory Methods */
 
-    public static FieldStringVariable make(IField f) {
-        return new FieldStringVariable(f);
+    public static FieldStringVariable makeString(IField f) {
+        return new FieldStringVariable(f, StringAndReflectiveUtil.JavaLangStringTypeReference);
+    }
+
+    public static StringLikeVariable makeObject(IField f) {
+        return new FieldStringVariable(f, StringAndReflectiveUtil.JavaLangObjectTypeReference);
     }
 
     /* Constructors */
 
-    private FieldStringVariable(IField f) {
+    private FieldStringVariable(IField f, TypeReference type) {
         this.f = f;
+        this.type = type;
     }
 
     /* Logic */
@@ -35,8 +42,7 @@ public class FieldStringVariable implements StringLikeVariable {
 
     @Override
     public TypeReference getExpectedType() {
-        // XXX: Unimplemented
-        throw new RuntimeException("unimplemented");
+        return type;
     }
 
     @Override

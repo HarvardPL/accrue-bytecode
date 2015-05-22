@@ -71,6 +71,9 @@ public final class FlowSensitiveStringLikeVariableFactory {
             else if (klass.equals(StringAndReflectiveUtil.JavaLangStringIClass)) {
                 return StringVariableFactory.makeLocalString(method, varNum);
             }
+            else if (klass.equals(StringAndReflectiveUtil.JavaLangObjectIClass)) {
+                return StringVariableFactory.makeLocalObject(method, varNum);
+            }
             else if (klass.equals(StringAndReflectiveUtil.JavaLangStringBuilderIClass)) {
                 StringLikeVariable foo = map.get(varNum);
                 if (foo == null) {
@@ -83,8 +86,9 @@ public final class FlowSensitiveStringLikeVariableFactory {
             }
             else {
                 throw new RuntimeException("String variables may only be created for objects "
-                        + "of class StringBuilder or String, given: " + klass + " compared to: "
-                        + StringAndReflectiveUtil.JavaLangStringIClass + " and "
+                        + "of class StringBuilder, Object, or String, given: " + klass + " compared to: "
+                        + StringAndReflectiveUtil.JavaLangStringIClass + ", "
+                        + StringAndReflectiveUtil.JavaLangObjectIClass + " and "
                         + StringAndReflectiveUtil.JavaLangStringBuilderIClass);
             }
         }
@@ -103,15 +107,19 @@ public final class FlowSensitiveStringLikeVariableFactory {
                 throw new RuntimeException("Unreachable?");
             }
             else if (klass.equals(StringAndReflectiveUtil.JavaLangStringIClass)) {
-                return StringVariableFactory.makeField(ifield);
+                return StringVariableFactory.makeStringField(ifield);
+            }
+            else if (klass.equals(StringAndReflectiveUtil.JavaLangObjectIClass)) {
+                return StringVariableFactory.makeObjectField(ifield);
             }
             else if (klass.equals(StringAndReflectiveUtil.JavaLangStringBuilderIClass)) {
                 return StringBuilderVariableFactory.makeField(ifield);
             }
             else {
                 throw new RuntimeException("String variables may only be created for objects "
-                        + "of class StringBuilder or String, given: " + klass + " compared to: "
-                        + StringAndReflectiveUtil.JavaLangStringIClass + " and "
+                        + "of class StringBuilder, Object, or String, given: " + klass + " compared to: "
+                        + StringAndReflectiveUtil.JavaLangStringIClass + ", "
+                        + StringAndReflectiveUtil.JavaLangObjectIClass + " and "
                         + StringAndReflectiveUtil.JavaLangStringBuilderIClass);
             }
         }

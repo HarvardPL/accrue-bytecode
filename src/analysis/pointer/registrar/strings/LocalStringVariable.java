@@ -14,14 +14,20 @@ import com.ibm.wala.types.TypeReference;
 public class LocalStringVariable implements StringLikeVariable {
     private final IMethod method;
     private final int varNum;
+    private final TypeReference type;
 
-    public static StringLikeVariable make(IMethod method, int varNum) {
-        return new LocalStringVariable(method, varNum);
+    public static StringLikeVariable makeString(IMethod method, int varNum) {
+        return new LocalStringVariable(method, varNum, StringAndReflectiveUtil.JavaLangStringTypeReference);
     }
 
-    private LocalStringVariable(IMethod method, int varNum) {
+    public static StringLikeVariable makeObject(IMethod method, int varNum) {
+        return new LocalStringVariable(method, varNum, StringAndReflectiveUtil.JavaLangObjectTypeReference);
+    }
+
+    private LocalStringVariable(IMethod method, int varNum, TypeReference type) {
         this.method = method;
         this.varNum = varNum;
+        this.type = type;
     }
 
     @Override
@@ -31,7 +37,7 @@ public class LocalStringVariable implements StringLikeVariable {
 
     @Override
     public TypeReference getExpectedType() {
-        return StringAndReflectiveUtil.JavaLangStringTypeReference;
+        return type;
     }
 
     @Override

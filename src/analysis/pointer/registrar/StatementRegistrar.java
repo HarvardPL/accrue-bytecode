@@ -370,8 +370,10 @@ public class StatementRegistrar {
             return;
         case CHECK_CAST:
             // v = (Type) x
-            this.registerCheckCast((SSACheckCastInstruction) i, ir, this.rvFactory,
-            // XXX: Should I send this method a `stringVariableFactory`?
+            this.registerCheckCast((SSACheckCastInstruction) i,
+                                   ir,
+                                   this.rvFactory,
+                                   stringVariableFactory,
                                    types,
                                    printer);
             return;
@@ -477,7 +479,8 @@ public class StatementRegistrar {
      * v2 = (TypeName) v1
      */
     private void registerCheckCast(SSACheckCastInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                   TypeRepository types, PrettyPrinter pp) {
+                                   FlowSensitiveStringLikeVariableFactory stringVariableFactory, TypeRepository types,
+                                   PrettyPrinter pp) {
         TypeReference valType = types.getType(i.getVal());
         if (valType == TypeReference.Null) {
             // the cast value is null so no effect on pointer analysis
@@ -492,6 +495,26 @@ public class StatementRegistrar {
                                                           pp);
         ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), valType, ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, ir.getMethod()));
+
+        TypeReference t1 = types.getType(i.getUse(0));
+        TypeReference t2 = types.getType(i.getDef());
+        if (okTypePairForStringConstraints(t1, t2)) {
+            StringLikeVariable left = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
+            StringLikeVariable right = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(0));
+            this.addStringStatement(stmtFactory.localToLocalString(left, right, ir.getMethod(), i));
+        }
+    }
+
+    private boolean okTypePairForStringConstraints(TypeReference t1, TypeReference t2) {
+        boolean stringToObject = StringAndReflectiveUtil.isStringType(t1) && StringAndReflectiveUtil.isObjectType(t2);
+        boolean objectToString = StringAndReflectiveUtil.isObjectType(t1) && StringAndReflectiveUtil.isStringType(t2);
+        boolean objectToObject = StringAndReflectiveUtil.isObjectType(t1) && StringAndReflectiveUtil.isObjectType(t2);
+        boolean stringToString = StringAndReflectiveUtil.isStringType(t1) && StringAndReflectiveUtil.isStringType(t2);
+        return stringToObject || objectToString || objectToObject || stringToString;
+    }
+
+    private boolean isStringBuilderPair(TypeReference t1, TypeReference t2) {
+        return StringAndReflectiveUtil.isStringBuilderType(t1) && StringAndReflectiveUtil.isStringBuilderType(t2);
     }
 
     /**
@@ -522,7 +545,7 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringBuilderType(resultType)) {
                 // it escaped
             }
-            else if (StringAndReflectiveUtil.isStringType(resultType)) {
+            else if (okTypePairForStringConstraints(resultType, f.getFieldType())) {
                 StringLikeVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
                 this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
             }
@@ -552,7 +575,7 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringBuilderType(resultType)) {
                 // it escaped
             }
-            else if (StringAndReflectiveUtil.isStringType(resultType)) {
+            else if (okTypePairForStringConstraints(resultType, types.getType(i.getDef()))) {
                 StringLikeVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef());
                 StringLikeVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
                 this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, i.getDeclaredField()
@@ -587,7 +610,7 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringBuilderType(valueType)) {
                 // it escaped
             }
-            else if (StringAndReflectiveUtil.isStringType(valueType)) {
+            else if (okTypePairForStringConstraints(valueType, f.getFieldType())) {
                 StringLikeVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal());
                 StringLikeVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
                 this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod(), i));
@@ -617,11 +640,10 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringBuilderType(valueType)) {
                 // it escaped
             }
-            else if (StringAndReflectiveUtil.isStringLikeType(valueType)
-                    && StringAndReflectiveUtil.isStringLikeType(i.getDeclaredFieldType())) {
+            else if (okTypePairForStringConstraints(valueType, i.getDeclaredFieldType())) {
                 StringLikeVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
                 StringLikeVariable svvuse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal());
-                this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svvuse, ir.getMethod()));
+                this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svvuse, i, ir.getMethod()));
             }
         }
     }
@@ -705,6 +727,14 @@ public class StatementRegistrar {
                                                      actuals,
                                                      exception,
                                                      calleeSummary));
+
+            if (ir.getMethod().getName().toString().contains("loadImpl")
+                    && i.getDeclaredTarget().getName().toString().contains("doPrivileged")) {
+                System.err.println("REGISTERING: " + i);
+                System.err.println("isnative?: "
+                        + AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative());
+            }
+
             if (PERFORM_REFLECTION_ANALYSIS) {
                 if (ForNameCallStatement.isForNameCall(i)) {
                     List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
@@ -737,7 +767,11 @@ public class StatementRegistrar {
                     this.addStringStatement(stmtFactory.localToLocalString(left, right, ir.getMethod(), i));
                 }
                 else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
-                    this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
+                    this.createStaticOrSpecialMethodCallString(i,
+                                                               ir.getMethod(),
+                                                               stringVariableFactory,
+                                                               types,
+                                                               resolvedCallee);
                 }
             }
         }
@@ -776,7 +810,11 @@ public class StatementRegistrar {
                     this.addStringStatement(stmtFactory.localToLocalString(svreceiverDef, argument, ir.getMethod(), i));
                 }
                 else if (!im.isNative()) {
-                    this.createStaticOrSpecialMethodCallString(i, ir.getMethod(), stringVariableFactory, resolvedCallee);
+                    this.createStaticOrSpecialMethodCallString(i,
+                                                               ir.getMethod(),
+                                                               stringVariableFactory,
+                                                               types,
+                                                               resolvedCallee);
                 }
             }
 
@@ -819,7 +857,7 @@ public class StatementRegistrar {
                     this.addStringStatement(stmtFactory.getNameCall(ir.getMethod(), receiver, svresult));
                 }
                 else if (!AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget()).isNative()) {
-                    this.createVirtualMethodCallString(i, ir, stringVariableFactory, receiver, exception);
+                    this.createVirtualMethodCallString(i, ir, stringVariableFactory, types, receiver, exception);
                 }
             }
         }
@@ -833,9 +871,13 @@ public class StatementRegistrar {
     // We need the exception to disambiguate duplicated virtual method calls
     private void createVirtualMethodCallString(SSAInvokeInstruction i, IR ir,
                                                FlowSensitiveStringLikeVariableFactory stringVariableFactory,
-                                               ReferenceVariable receiver, ReferenceVariable exception) {
+                                               TypeRepository types, ReferenceVariable receiver,
+                                               ReferenceVariable exception) {
+        MethodReference declaredTarget = i.getDeclaredTarget();
+
         StringLikeVariable returnToVariable;
-        if (StringAndReflectiveUtil.isStringType(i.getDeclaredResultType())) {
+        if (i.hasDef()
+                && okTypePairForStringConstraints(declaredTarget.getReturnType(), types.getType(i.getReturnValue(0)))) {
             returnToVariable = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));
             assert returnToVariable != null;
         }
@@ -843,7 +885,6 @@ public class StatementRegistrar {
             returnToVariable = null;
         }
 
-        MethodReference declaredTarget = i.getDeclaredTarget();
         ArrayList<OrderedPair<StringLikeVariable, Integer>> stringArgumentAndParameters = new ArrayList<>();
         // the (1 + ...) is for the `this` argument
         assert (i.getNumberOfParameters() == 1 + declaredTarget.getNumberOfParameters()) // normal
@@ -852,7 +893,7 @@ public class StatementRegistrar {
 
         for (int j = 1; j < i.getNumberOfParameters(); ++j) {
             // we use j-1 here because MethodReference objects do not count the `this` argument as a parmater.
-            if (StringAndReflectiveUtil.isStringType(declaredTarget.getParameterType(j - 1))) {
+            if (okTypePairForStringConstraints(declaredTarget.getParameterType(j - 1), types.getType(i.getUse(j)))) {
                 StringLikeVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 // we use j here, not j-1, because IMethod's will include the `this` parameter,
                 // unlike a MethodReference, which does not include it.
@@ -870,12 +911,19 @@ public class StatementRegistrar {
 
     private void createStaticOrSpecialMethodCallString(SSAInvokeInstruction i, IMethod caller,
                                                        FlowSensitiveStringLikeVariableFactory stringVariableFactory,
-                                                       IMethod resolvedCallee) {
+                                                       TypeRepository types, IMethod resolvedCallee) {
         MethodStringSummary summary = this.findOrCreateStringMethodSummary(resolvedCallee);
         StringLikeVariable formalReturn;
         StringLikeVariable actualReturn;
+        if (caller.getName().toString().contains("loadImpl")
+                && i.getDeclaredTarget().getName().toString().contains("doPrivileged")) {
+            System.err.println("callee return type: " + resolvedCallee.getReturnType());
+            System.err.println("instruction return type: " + i.getReturnValue(0));
+            System.err.println("ok?: "
+                    + okTypePairForStringConstraints(resolvedCallee.getReturnType(), types.getType(i.getReturnValue(0))));
+        }
         if (summary.getRet() == null || i.getNumberOfReturnValues() == 0
-                || !StringAndReflectiveUtil.isStringLikeType(resolvedCallee.getReturnType())) {
+                || !okTypePairForStringConstraints(resolvedCallee.getReturnType(), types.getType(i.getReturnValue(0)))) {
             formalReturn = null;
             actualReturn = null;
         }
@@ -901,7 +949,7 @@ public class StatementRegistrar {
         // the getNumberOfUses will not include `this`. MethodStringSummary objects use the same
         // convention for what "Parameter" means.
         for (int j = 0; j < i.getNumberOfUses(); ++j) {
-            if (StringAndReflectiveUtil.isStringType(resolvedCallee.getParameterType(j))) {
+            if (okTypePairForStringConstraints(resolvedCallee.getParameterType(j), types.getType(i.getUse(j)))) {
                 StringLikeVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j));
                 StringLikeVariable parameter = summary.getFormals().get(j);
                 assert argument != null;
@@ -1133,10 +1181,11 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
 
         if (PERFORM_REFLECTION_ANALYSIS) {
-            if (StringAndReflectiveUtil.isStringBuilderType(ir.getMethod().getReturnType())) {
+            TypeReference returnType = ir.getMethod().getReturnType();
+            if (StringAndReflectiveUtil.isStringBuilderType(returnType)) {
                 // it escapes
             }
-            else if (StringAndReflectiveUtil.isStringType(ir.getMethod().getReturnType())) {
+            else if (okTypePairForStringConstraints(returnType, valType)) {
                 StringLikeVariable sv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult());
                 StringLikeVariable formalReturn = this.findOrCreateStringMethodSummary(ir.getMethod()).getRet();
                 this.addStringStatement(stmtFactory.localToLocalString(formalReturn, sv, ir.getMethod(), i));

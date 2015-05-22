@@ -14,8 +14,12 @@ public class MethodReturnStringVariable implements StringLikeVariable {
     private final IMethod method;
     private final TypeReference type;
 
-    public static StringLikeVariable make(IMethod method) {
+    public static StringLikeVariable makeString(IMethod method) {
         return new MethodReturnStringVariable(method, TypeReference.JavaLangString);
+    }
+
+    public static StringLikeVariable makeObject(IMethod method) {
+        return new MethodReturnStringVariable(method, TypeReference.JavaLangObject);
     }
 
     private MethodReturnStringVariable(IMethod method, TypeReference type) {

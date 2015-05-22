@@ -24,6 +24,9 @@ public class MethodStringSummary {
         if (StringAndReflectiveUtil.isStringType(returnType)) {
             ret = StringVariableFactory.makeMethodReturnString(method);
         }
+        else if (StringAndReflectiveUtil.isObjectType(returnType)) {
+            ret = StringVariableFactory.makeMethodReturnObject(method);
+        }
         else if (StringAndReflectiveUtil.isStringBuilderType(returnType)) {
             ret = null;
         }
@@ -37,6 +40,9 @@ public class MethodStringSummary {
             if (StringAndReflectiveUtil.isStringType(parameterType)) {
                 formals.add(StringVariableFactory.makeLocalString(method, ir.getParameter(i)));
             }
+            else if (StringAndReflectiveUtil.isObjectType(parameterType)) {
+                formals.add(StringVariableFactory.makeLocalObject(method, ir.getParameter(i)));
+            }
             else if (StringAndReflectiveUtil.isStringBuilderType(parameterType)) {
                 formals.add(null);
             }
@@ -45,34 +51,6 @@ public class MethodStringSummary {
             }
         }
 
-        return new MethodStringSummary(ret, formals);
-    }
-
-    public static MethodStringSummary makeNative(IMethod method) {
-        StringLikeVariable ret;
-        if (StringAndReflectiveUtil.isStringType(method.getReturnType())) {
-            ret = StringVariableFactory.makeMethodReturnString(method);
-        }
-        else if (StringAndReflectiveUtil.isStringBuilderType(method.getReturnType())) {
-            ret = null;
-        }
-        else {
-            ret = null;
-        }
-
-        List<StringLikeVariable> formals = new ArrayList<>(method.getNumberOfParameters());
-        for (int i = 0; i < method.getNumberOfParameters(); ++i) {
-            if (StringAndReflectiveUtil.isStringType(method.getParameterType(i))) {
-                // XXX: Do I need this at all?
-                formals.add(StringVariableFactory.makeNativeParameterString(method, i));
-            }
-            else if (StringAndReflectiveUtil.isStringBuilderType(method.getParameterType(i))) {
-                formals.add(null);
-            }
-            else {
-                formals.add(null);
-            }
-        }
         return new MethodStringSummary(ret, formals);
     }
 

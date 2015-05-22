@@ -12,12 +12,15 @@ import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.strings.Atom;
 
 public class StringAndReflectiveUtil {
+    public static final IClass JavaLangObjectIClass = AnalysisUtil.getObjectClass();
     public static final IClass JavaLangStringIClass = AnalysisUtil.getStringClass();
     public static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                               TypeName.string2TypeName("Ljava/lang/StringBuilder")));
 
     public final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                TypeName.string2TypeName("Ljava/lang/String"));
+    public final static TypeReference JavaLangObjectTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                                               TypeName.string2TypeName("Ljava/lang/Object"));
     private final static Atom concatAtom = Atom.findOrCreateUnicodeAtom("concat");
     private final static Descriptor concatDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
                                                                              "(Ljava/lang/String;)Ljava/lang/String;");
@@ -97,7 +100,7 @@ public class StringAndReflectiveUtil {
                                                                    TypeName.string2TypeName(name)));
     }
 
-    private static IMethod getIMethod(TypeReference type, String atom, String desc) {
+    public static IMethod getIMethod(TypeReference type, String atom, String desc) {
         return methodReferenceToIMethod(MethodReference.findOrCreate(type,
                                                                      Atom.findOrCreateUnicodeAtom(atom),
                                                                      Descriptor.findOrCreateUTF8(Language.JAVA, desc)));
@@ -166,6 +169,10 @@ public class StringAndReflectiveUtil {
         return trEqualsIClass(t, JavaLangStringIClass);
     }
 
+    public static boolean isObjectType(TypeReference t) {
+        return trEqualsIClass(t, JavaLangObjectIClass);
+    }
+
     public static boolean trEqualsIClass(TypeReference t, IClass ic) {
         if (t == null) {
             return false;
@@ -190,4 +197,5 @@ public class StringAndReflectiveUtil {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
         return im.equals(classGetNameIMethod);
     }
+
 }

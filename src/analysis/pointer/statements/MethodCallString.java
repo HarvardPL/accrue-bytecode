@@ -52,7 +52,8 @@ public abstract class MethodCallString extends StringStatement {
             }
         }
 
-        assert (actualReturn == null) == (formalReturn == null) : "Should both be either null or non-null";
+        assert (actualReturn == null) || (actualReturn != null && formalReturn != null) : "if actual return is non-null then summary better be non-null. formalReturn is "
+                + formalReturn + " actualReturn is " + actualReturn;
         if (actualReturn != null) {
             StringLikeVariableReplica actualReturnSVR = new StringLikeVariableReplica(context, actualReturn);
             StringLikeVariableReplica formalReturnSVR = new StringLikeVariableReplica(context, formalReturn);
