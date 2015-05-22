@@ -44,12 +44,14 @@ import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
+import analysis.pointer.graph.strings.StringLikeVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.registrar.strings.StringLikeVariable;
 import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.ForNameCallStatement;
 import analysis.pointer.statements.StatementFactory;
+import analysis.pointer.statements.StringStatement;
 import analysis.string.AbstractString;
 import analysis.string.StringAnalysisResults;
 import analysis.string.StringVariableFactory;
@@ -63,6 +65,7 @@ import com.ibm.wala.ipa.callgraph.AnalysisOptions.ReflectionOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
+import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.ipa.callgraph.impl.Util;
@@ -534,7 +537,7 @@ public class AccrueAnalysisMain {
                                                                                             boolean PERFORM_REFLECTION_ANALYSIS) {
         System.err.println(AnalysisUtil.entryPoint);
         PointsToAnalysis analysis;
-        HeapAbstractionFactory wrappedHaf = ReflectiveHAF.make(5, 5, haf);
+        HeapAbstractionFactory wrappedHaf = ReflectiveHAF.make(50, 50, haf);
         if (singleThreaded) {
             analysis = new PointsToAnalysisSingleThreaded(wrappedHaf);
         }
@@ -572,14 +575,26 @@ public class AccrueAnalysisMain {
             for (ConstraintStatement s : registrar.getStatementsForMethod(m)) {
                 if (s instanceof ForNameCallStatement) {
                     ForNameCallStatement fncs = (ForNameCallStatement) s;
-                    System.err.println("ForNameCallStatement " + fncs + " was called with these arguments:");
-                    for (StringLikeVariable sv : fncs.getStringUses()) {
-                        System.err.println("  " + sv + " ↦ ???");
+                    System.err.println("ForNameCallStatement " + fncs + " was called in " + g.getContexts(m).size() + " contexts");
+                    for (Context context : g.getContexts(m)) {
+                        System.err.println("  In the context " + context
+                                + " these arguments were used with these values:");
+                        for (StringLikeVariable sv : fncs.getStringUses()) {
+                            StringLikeVariableReplica svr = new StringLikeVariableReplica(context, sv);
+                            System.err.println("    " + svr + " ↦ " + g.getAStringSetFor(svr));
+                        }
                     }
                 }
             }
+            if (m.getName().toString().contains("loadImpl")) {
+                System.err.println("########BEGIN " + m.getName());
+                for (StringStatement stmt : registrar.getStringStatementsForMethod(m)) {
+                    System.err.println("  " + stmt);
+                }
+                System.err.println("########END " + m.getName());
+            }
         }
-        System.err.println("The string constraints were: ");
+
         g.getStringConstraints().printStringConstraints();
 
         if (singleThreaded) {
