@@ -36,8 +36,9 @@ public class StaticOrSpecialMethodCallString extends MethodCallString {
     @Override
     protected boolean writersAreActive(Context context, PointsToGraph g, PointsToIterable pti, StmtAndContext originator, HeapAbstractionFactory haf, StatementRegistrar registrar) {
         boolean writersAreActive = false;
-        if (this.formalReturn != null) {
-            g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context, this.formalReturn));
+        if (this.actualReturn != null) {
+            writersAreActive |= g.stringSolutionVariableReplicaIsActive(new StringLikeVariableReplica(context,
+                                                                                                      this.actualReturn));
         }
 
         for (OrderedPair<StringLikeVariable, StringLikeVariable> argumentAndParameter : stringArgumentAndParameters) {
