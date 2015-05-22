@@ -650,12 +650,12 @@ public class StatementFactory {
         return new LocalToFieldStringStatement(svvDef, svvUse, o, f, method);
     }
 
-    public StringStatement localToStaticFieldString(StringLikeVariable svf, StringLikeVariable svvuse, IMethod method) {
+    public StringStatement localToStaticFieldString(StringLikeVariable svf, StringLikeVariable svvuse, SSAInstruction i, IMethod method) {
         assert svf != null;
         assert svvuse != null;
         assert method != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(svf, svvuse, method));
+        assert stringStatementNeverCreatedBefore(new StatementKey(svf, svvuse, method, i));
 
         return new LocalToStaticFieldStringStatement(svf, svvuse, method);
     }
