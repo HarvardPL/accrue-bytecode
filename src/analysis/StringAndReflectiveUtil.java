@@ -94,7 +94,7 @@ public class StringAndReflectiveUtil {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
     }
 
-    private static IClass getIClass(String name) {
+    public static IClass getIClass(String name) {
         return AnalysisUtil.getClassHierarchy()
                            .lookupClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                    TypeName.string2TypeName(name)));

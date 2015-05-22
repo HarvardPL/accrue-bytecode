@@ -36,6 +36,7 @@ import analysis.pointer.registrar.strings.StringLikeVariable;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ForNameCallStatement;
 import analysis.pointer.statements.GetPropertyStatement;
+import analysis.pointer.statements.JavaLangReflectConstructorStatement;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -748,6 +749,13 @@ public class StatementRegistrar {
                                                               svarguments));
 
                 }
+                else if (JavaLangReflectConstructorStatement.isConstructorStaticMethodCall(i)) {
+                    this.addStatement(stmtFactory.constructorMethodStaticCall(i.getCallSite(),
+                                                                              ir.getMethod(),
+                                                                              resolvedCallee,
+                                                                              result,
+                                                                              actuals));
+                }
                 else if (GetPropertyStatement.isGetPropertyCall(i)) {
                     List<StringLikeVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                     for (int j = 0; j < i.getNumberOfParameters(); ++j) {
@@ -803,6 +811,14 @@ public class StatementRegistrar {
 
                     this.addStringStatement(stmtFactory.stringInit0(i.getCallSite(), ir.getMethod(), svreceiverDef));
                 }
+                else if (JavaLangReflectConstructorStatement.isConstructorSpecialMethodCall(i)) {
+                    this.addStatement(stmtFactory.constructorMethodSpecialCall(i.getCallSite(),
+                                                                               ir.getMethod(),
+                                                                               resolvedCallee,
+                                                                               receiver,
+                                                                               result,
+                                                                               actuals));
+                }
                 else if (StringAndReflectiveUtil.isStringBuilderInit1Method(im)) {
                     StringLikeVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i, i.getReceiver());
                     StringLikeVariable argument = stringVariableFactory.getOrCreateLocalUse(i, i.getUse(1));
@@ -851,6 +867,14 @@ public class StatementRegistrar {
                                                                          svreceiverDef,
                                                                          svarguments,
                                                                          stringVariableFactory));
+                }
+                else if (JavaLangReflectConstructorStatement.isConstructorVirtualMethodCall(i)) {
+                    this.addStatement(stmtFactory.constructorMethodVirtualCall(i.getCallSite(),
+                                                                               ir.getMethod(),
+                                                                               i.getDeclaredTarget(),
+                                                                               receiver,
+                                                                               result,
+                                                                               actuals));
                 }
                 else if (StringAndReflectiveUtil.isGetNameMethod(i.getDeclaredTarget())) {
                     StringLikeVariable svresult = stringVariableFactory.getOrCreateLocalDef(i, i.getReturnValue(0));

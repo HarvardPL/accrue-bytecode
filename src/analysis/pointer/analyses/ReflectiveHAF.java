@@ -33,7 +33,7 @@ public class ReflectiveHAF extends HeapAbstractionFactory {
 
     @Override
     public Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
-        if (receiver instanceof ClassInstanceKey) {
+        if (receiver instanceof WrapperInstanceKey) {
             return wrappedHAF.merge(callSite, ((ClassInstanceKey) receiver).getInnerIK(), callerContext);
         }
         else {

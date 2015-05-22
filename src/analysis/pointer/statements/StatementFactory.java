@@ -650,7 +650,8 @@ public class StatementFactory {
         return new LocalToFieldStringStatement(svvDef, svvUse, o, f, method);
     }
 
-    public StringStatement localToStaticFieldString(StringLikeVariable svf, StringLikeVariable svvuse, SSAInstruction i, IMethod method) {
+    public StringStatement localToStaticFieldString(StringLikeVariable svf, StringLikeVariable svvuse,
+                                                    SSAInstruction i, IMethod method) {
         assert svf != null;
         assert svvuse != null;
         assert method != null;
@@ -766,12 +767,79 @@ public class StatementFactory {
 
     }
 
+    public PointsToStatement constructorMethodVirtualCall(CallSiteReference callSite, IMethod method,
+                                                          MethodReference declaredTarget, ReferenceVariable receiver,
+                                                          ReferenceVariable result, List<ReferenceVariable> actuals) {
+        assert callSite != null;
+        assert method != null;
+        assert declaredTarget != null;
+        assert receiver != null;
+        assert result != null;
+        assert actuals != null;
+
+        assert reflectiveStatementNeverCreatedBefore(new StatementKey(callSite,
+                                                                      method,
+                                                                      declaredTarget,
+                                                                      receiver,
+                                                                      result,
+                                                                      actuals));
+
+        return JavaLangReflectConstructorStatement.makeVirtualCall(callSite, method, result, actuals);
+    }
+
+    public PointsToStatement constructorMethodSpecialCall(CallSiteReference callSite, IMethod method,
+                                                          IMethod resolvedCallee, ReferenceVariable receiver,
+                                                          ReferenceVariable result, List<ReferenceVariable> actuals) {
+        assert callSite != null;
+        assert method != null;
+        assert resolvedCallee != null;
+        assert receiver != null;
+        assert result != null;
+        assert actuals != null;
+
+        assert reflectiveStatementNeverCreatedBefore(new StatementKey(callSite,
+                                                                      method,
+                                                                      resolvedCallee,
+                                                                      receiver,
+                                                                      result,
+                                                                      actuals));
+
+        return JavaLangReflectConstructorStatement.makeSpecialCall(callSite, method, result, actuals);
+    }
+
+    public PointsToStatement constructorMethodStaticCall(CallSiteReference callSite, IMethod method,
+                                                         IMethod resolvedCallee, ReferenceVariable result,
+                                                         List<ReferenceVariable> actuals) {
+        assert callSite != null;
+        assert method != null;
+        assert resolvedCallee != null;
+        assert result != null;
+        assert actuals != null;
+
+        assert reflectiveStatementNeverCreatedBefore(new StatementKey(callSite, method, resolvedCallee, result, actuals));
+
+        return JavaLangReflectConstructorStatement.makeStaticCall(callSite, method, result, actuals);
+    }
+
+    private final Set<StatementKey> reflectiveStatementMap = new HashSet<>();
+
+    private boolean reflectiveStatementNeverCreatedBefore(StatementKey statementKey) {
+        if (reflectiveStatementMap.contains(statementKey)) {
+            System.err.println("I already saw reflective statement: " + statementKey);
+            return false;
+        }
+        else {
+            reflectiveStatementMap.add(statementKey);
+            return true;
+        }
+    }
+
     /* set of string statement keys we've seen before. */
     private final Set<StatementKey> stringStatementMap = new HashSet<>();
 
     private boolean stringStatementNeverCreatedBefore(StatementKey statementKey) {
         if (stringStatementMap.contains(statementKey)) {
-            System.err.println("I already saw: " + statementKey);
+            System.err.println("I already saw string statement: " + statementKey);
             return false;
         }
         else {
