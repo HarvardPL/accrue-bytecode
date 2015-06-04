@@ -35,12 +35,13 @@ public class StatementRegistrationPass {
 
     private final StatementRegistrar registrar;
     private static boolean PROFILE = false;
+    public static long ellapsedTime = 0L;
 
     /**
      * Create a pass which will generate points-to statements
-     * 
+     *
      * @param factory factory used to create points-to statements
-     * 
+     *
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -226,8 +227,8 @@ public class StatementRegistrationPass {
             }
 
         }
-
-        System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
+        ellapsedTime = (System.currentTimeMillis() - start);
+        System.err.println("Statement registration took " + ellapsedTime + "ms");
         if (!AccrueAnalysisMain.testMode) {
             System.gc();
             System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)

@@ -12,15 +12,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import main.AccrueAnalysisMain;
+import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
-import util.intmap.ConcurrentMonotonicIntHashMap;
 import util.intmap.IntMap;
-import util.intset.ConcurrentMonotonicIntHashSet;
+import util.intset.ConcurrentIntHashSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -132,6 +133,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
+        System.out.println((StatementRegistrationPass.ellapsedTime + totalTime) / 1000.0);
         int ptgNodes = g.numPointsToGraphNodes();
 
         // Compute the number of edges
@@ -151,7 +153,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         // number of call graph nodes
         int numCGNodes = g.getNumberOfCallGraphNodes();
 
-        System.out.println(totalTime / 1000.0);
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
@@ -470,14 +471,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
-        return new ConcurrentMonotonicIntHashSet(AnalysisUtil.numThreads);
-        //return new ConcurrentIntHashSet(16, 0.75f, AnalysisUtil.numThreads);
+        //return new ConcurrentMonotonicIntHashSet(AnalysisUtil.numThreads);
+        return new ConcurrentIntHashSet(16, 0.75f, AnalysisUtil.numThreads);
         //return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        return new ConcurrentMonotonicIntHashMap<>(AnalysisUtil.numThreads);
-        //return new ConcurrentIntHashMap<>(16, 0.75f, AnalysisUtil.numThreads);
+        //return new ConcurrentMonotonicIntHashMap<>(AnalysisUtil.numThreads);
+        return new ConcurrentIntHashMap<>(16, 0.75f, AnalysisUtil.numThreads);
     }
 
     /**
