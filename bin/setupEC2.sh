@@ -1,5 +1,9 @@
 #####
-# This file contains commands needed to set up a fresh Amazon EC2 instance
+# This file contains commands needed to set up a fresh Amazon EC2 instance.
+#
+# This script should be run on an Amazon EC2 instance. The text below
+# describes steps that you need to take to start an Amazon EC2 instance
+# before running this script (which performs steps 4 through 6).
 #
 # 1. Start a new instance and volume (if you don't have one)
 #    Otherwise create a volume and instance in the same location
