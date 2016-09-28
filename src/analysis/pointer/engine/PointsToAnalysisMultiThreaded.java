@@ -6,8 +6,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -68,6 +68,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         long startTime = System.currentTimeMillis();
 
 
+        // Based on one case study, using a ForkJoinPool in non-asynchronous mode seems to be
+        // better.
         //final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
         final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(PointsToAnalysisMultiThreaded.numThreads()));
         //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
@@ -247,7 +249,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     class ExecutorServiceCounter {
         public PointsToGraph g;
         public StatementRegistrar registrar;
-        private ExecutorService exec;
+        private ForkJoinPool exec;
 
         /**
          * The number of tasks currently to be executed
@@ -260,7 +262,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private AtomicLong totalTasksNoDelta;
         private AtomicLong totalTasksWithDelta;
 
-        public ExecutorServiceCounter(ExecutorService exec) {
+        public ExecutorServiceCounter(ForkJoinPool exec) {
             this.exec = exec;
             this.numTasks = new AtomicLong(0);
             this.totalTasksNoDelta = new AtomicLong(0);
@@ -300,14 +302,28 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             else {
                 this.totalTasksWithDelta.incrementAndGet();
             }
-            exec.execute(new RunnableStmtAndContext(sac, delta));
+            RunnableStmtAndContext sactask = new RunnableStmtAndContext(sac, delta);
+            if (ForkJoinTask.inForkJoinPool()) {
+                sactask.fork();
+            }
+            else {
+                exec.execute(sactask);
+            }
         }
 
         public void submitTask(Set<StmtAndContext> sacs, GraphDelta delta) {
             this.numTasks.incrementAndGet();
             assert delta != null;
             this.totalTasksWithDelta.incrementAndGet();
-            exec.execute(new RunnableStmtAndContextsWithDelta(sacs, delta));
+
+            RunnableStmtAndContextsWithDelta sactasks = new RunnableStmtAndContextsWithDelta(sacs, delta);
+
+            if (ForkJoinTask.inForkJoinPool()) {
+                sactasks.fork();
+            }
+            else {
+                exec.execute(sactasks);
+            }
         }
 
         public void finishedTask() {
@@ -341,7 +357,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
 
-        public class RunnableStmtAndContext implements Runnable {
+        public class RunnableStmtAndContext extends ForkJoinTask<Void> {
             private final StmtAndContext sac;
             private final GraphDelta delta;
 
@@ -351,21 +367,32 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void run() {
+            public Void getRawResult() {
+                return null;
+            }
+
+            @Override
+            protected void setRawResult(Void value) {
+            }
+
+            @Override
+            public boolean exec() {
                 try {
                     processSaC(sac, delta, ExecutorServiceCounter.this);
                     ExecutorServiceCounter.this.finishedTask();
+                    return true;
                 }
                 catch (Throwable e) {
                     e.printStackTrace();
                     System.exit(0);
                     // No seriously DIE!
                     Runtime.getRuntime().halt(0);
+                    return false;
                 }
             }
         }
 
-        public class RunnableStmtAndContextsWithDelta implements Runnable {
+        public class RunnableStmtAndContextsWithDelta extends ForkJoinTask<Void> {
             private final Set<StmtAndContext> sacs;
             private final GraphDelta delta;
 
@@ -375,19 +402,30 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void run() {
+            public boolean exec() {
                 try {
                     for (StmtAndContext sac : sacs) {
                         processSaC(sac, delta, ExecutorServiceCounter.this);
                     }
                     ExecutorServiceCounter.this.finishedTask();
+                    return true;
                 }
                 catch (Throwable e) {
                     e.printStackTrace();
                     System.exit(0);
                     // No seriously DIE!
                     Runtime.getRuntime().halt(0);
+                    return false;
                 }
+            }
+
+            @Override
+            public Void getRawResult() {
+                return null;
+            }
+
+            @Override
+            protected void setRawResult(Void value) {
             }
         }
 
