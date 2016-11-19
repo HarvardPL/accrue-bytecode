@@ -1565,8 +1565,15 @@ public final class PointsToGraph {
         while (keyIterator.hasNext()) {
             int key = keyIterator.next();
             MutableIntSet ms = pointsTo.get(key);
-            MutableIntSet newMS = MutableSparseIntSet.make(ms);
-            pointsTo.put(key, newMS);
+            int size = ms.size();
+            if (size > 0) {
+                MutableIntSet newMS = MutableSparseIntSet.createMutableSparseIntSet(size);
+                IntIterator iter = ms.intIterator();
+                while (iter.hasNext()) {
+                    newMS.add(iter.next());
+                }
+                pointsTo.put(key, newMS);
+            }
         }
 
         // this.reachableContexts = compact(this.reachableContexts);
