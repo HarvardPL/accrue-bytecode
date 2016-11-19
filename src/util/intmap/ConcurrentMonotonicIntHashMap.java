@@ -205,7 +205,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
             outer: while (true) {
                 // We need a read lock here, as we will be either modifying an Entry
                 // or adding a new Entry
-                boolean releasedReadLock = false;
                 this.bucketArrayReadLock.lock();
 
                 try {
@@ -249,19 +248,10 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                     // We add a new Entry
                     // Check first to see if we want to resize
                     if (bucketHead != null && bucketHead.length >= THRESHOLD_BUCKET_LENGTH) {
-                        // yes, we want to resize
-                        if (resize(b, key, hash, val)) {
-                            // we successfully resized and added the new entry
-                            releasedReadLock = true;
-                            return null;
-                        }
-                        // we decided not to resize, and haven't added the entry.
-                        // The read lock is still held.
-                        // Make sure the buckets haven't changed from under us,
-                        // then fall through and do the add.
-                        Entry<V>[] currentBuckets = this.buckets;
-                        if (currentBuckets != b) {
-                            // doh! the buckets changed under us, just try again.
+                        // yes, we want to try to resize.
+                        if (tryResize(b)) {
+                            // We have to try again, since someone may have snuck in and added
+                            // added the key while we were without any locks.
                             continue outer;
                         }
                     }
@@ -277,9 +267,7 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                     // Release the read lock and try the put again, by continuing at the outer loop.
                 }
                 finally {
-                    if (!releasedReadLock) {
-                        this.bucketArrayReadLock.unlock();
-                    }
+                    this.bucketArrayReadLock.unlock();
                 }
             }
         }
@@ -361,14 +349,18 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
         }
 
         /**
-         * Resize the buckets, and then add the key, value pair.
+         * Resize the buckets.
          *
-         * Readlock must be held before calling. The read lock will be held at the end of the method if and only if it
-         * returns false.
+         * Readlock must be held before calling, and will be held when the method exits.
+         *
+         * Returns whether the caller needs to start from scratch (i.e., check for the existence of a key before trying
+         * to do a put).
          */
-        private boolean resize(Entry<V>[] b, int key, int hash, V value) {
+        private boolean tryResize(Entry<V>[] b) {
             if (!this.resizeInProgress.compareAndSet(false, true)) {
                 // someone else is resizing already
+                // We haven't given up any locks, and the buckets haven't been resized
+                // since we acquired the read lock. So no need for the caller to start from scratch.
                 return false;
             }
             // we want the write lock. Upgrade by first releasing the read lock
@@ -379,9 +371,8 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
 
                 if (b != existingBuckets) {
                     // someone already resized it from when we decided we needed to.
-                    // Downgrade to a read lock. We do this by locking the read lock, and then, when we return, releasing the write lock.
-                    this.bucketArrayReadLock.lock();
-                    return false;
+                    // We have given up locks, and so someone may have snuck in and added a key
+                    return true;
                 }
                 int newBucketLength = existingBuckets.length * 2;
                 Entry<V>[] newBuckets = new Entry[newBucketLength];
@@ -441,10 +432,6 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                     }
                 }
 
-                // now add the new entry
-                int ind = bucketForHash(hash, newBucketLength);
-                newBuckets[ind] = new Entry<>(key, value, newBuckets[ind]);
-
                 // now update the buckets
                 this.buckets = newBuckets;
                 this.deletedEntries.set(deleted);
@@ -452,7 +439,9 @@ public final class ConcurrentMonotonicIntHashMap<V> implements ConcurrentIntMap<
                 return true;
             }
             finally {
-                // unlock
+                // downgrade to a read lock, by first getting the ReadLock and then
+                // releasing the write lock.
+                this.bucketArrayReadLock.lock();
                 this.bucketArrayWriteLock.unlock();
                 this.resizeInProgress.set(false);
             }

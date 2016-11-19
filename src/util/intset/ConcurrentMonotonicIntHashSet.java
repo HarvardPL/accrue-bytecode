@@ -1,7 +1,10 @@
 package util.intset;
 
+import java.io.PrintStream;
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -152,10 +155,13 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
                     // Check first to see if we want to resize
                     if (bucketHead != null && bucketHead.length >= THRESHOLD_BUCKET_LENGTH) {
                         // yes, we want to resize
-                        if (resize(b, key, hash)) {
-                            // we successfully resized and added the new entry
+                        ResizeResult rr = resize(b, key, hash);
+
+                        if (rr != ResizeResult.NO_RESIZE) {
+                            // we successfully resized
                             releasedReadLock = true;
-                            return true;
+                            // return value should indicate whether we added or not.
+                            return rr == ResizeResult.RESIZED_ADDED;
                         }
                         // we decided not to resize, and haven't added the entry.
                         // The read lock is still held.
@@ -188,27 +194,35 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
 
 
         /**
+         * Enum to help communicate the result of resize.
+         */
+        private static enum ResizeResult {
+            NO_RESIZE, RESIZED_ADDED, RESIZED_ALREADY_EXISTED
+        }
+
+        /**
          * Resize the buckets, and then add the key.
          *
          * Readlock must be held before calling. The read lock will be held at the end of the method if and only if it
-         * returns false.
+         * returns NO_RESIZE.
          */
-        private boolean resize(Entry[] b, int key, int hash) {
+        private ResizeResult resize(Entry[] b, int key, int hash) {
             if (!this.resizeInProgress.compareAndSet(false, true)) {
                 // someone else is resizing already
-                return false;
+                return ResizeResult.NO_RESIZE;
             }
             // we want the write lock. Upgrade by first releasing the read lock
             this.bucketArrayReadLock.unlock();
             this.bucketArrayWriteLock.lock();
             try {
                 Entry[] existingBuckets = this.buckets;
+                boolean alreadyContainsNewElem = false;
 
                 if (b != existingBuckets) {
                     // someone already resized it from when we decided we needed to.
                     // Upgrade to a read lock, but getting the read lock.
                     this.bucketArrayReadLock.lock();
-                    return false;
+                    return ResizeResult.NO_RESIZE;
                 }
                 int newBucketLength = existingBuckets.length * 2;
                 Entry[] newBuckets = new Entry[newBucketLength];
@@ -233,6 +247,8 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
                             else {
                                 // we are still part of the same chain.
                             }
+
+                            alreadyContainsNewElem = alreadyContainsNewElem || (e.key == key);
                             e = e.next;
                         }
                     }
@@ -253,13 +269,15 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
                 }
 
                 // now add the new entry
-                int ind = bucketForHash(hash, newBucketLength);
-                newBuckets[ind] = new Entry(key, newBuckets[ind]);
+                if (!alreadyContainsNewElem) {
+                    int ind = bucketForHash(hash, newBucketLength);
+                    newBuckets[ind] = new Entry(key, newBuckets[ind]);
+                }
 
                 // now update the buckets
                 this.buckets = newBuckets;
 
-                return true;
+                return alreadyContainsNewElem ? ResizeResult.RESIZED_ALREADY_EXISTED : ResizeResult.RESIZED_ADDED;
             }
             finally {
                 // unlock
@@ -590,7 +608,7 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
      */
     public static void main(String[] args) {
         ConcurrentMonotonicIntHashSet m = new ConcurrentMonotonicIntHashSet();
-        int testSize = 10000;
+        int testSize = 100000;
         for (int i = 0; i < testSize; i++) {
             if (m.add(i) == false) {
                 throw new RuntimeException("add");
@@ -614,8 +632,13 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         int count = 0;
         System.out.println("OK: C");
 
+        Set<Integer> mirror = new HashSet<Integer>();
+
         while (iter.hasNext()) {
             int i = iter.next();
+            if (!mirror.add(i)) {
+                throw new RuntimeException("duplicates: " + i);
+            }
             //System.out.println(i);
             if (!m.contains(i)) {
                 throw new RuntimeException("contains");
@@ -721,4 +744,36 @@ public final class ConcurrentMonotonicIntHashSet implements MutableIntSet {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Non-thread-safe method that pretty prints the data structure
+     *
+     * @param s
+     */
+    public void dump(PrintStream str) {
+        for (int i = 0; i < this.segments.length; i++) {
+            Segment s = this.segments[i];
+            if (s == null) {
+                continue;
+            }
+            String pre = "Seg " + i + ": ";
+            for (int j = 0; j < s.buckets.length; j++) {
+                Entry e = s.buckets[j];
+                if (e == null) {
+                    continue;
+                }
+                // the bucket is non null
+                str.print(pre);
+                pre = "       ";
+                str.print("b" + j + ": ");
+                while (e != null) {
+                    str.print(e.key);
+                    e = e.next;
+                    if (e != null) {
+                        str.print(" -> ");
+                    }
+                }
+                str.println();
+            }
+        }
+    }
 }
