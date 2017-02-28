@@ -28,6 +28,7 @@ import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInstructionFactory;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
+import com.ibm.wala.ssa.SSAInvokeDynamicInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAOptions;
 import com.ibm.wala.ssa.SSAPutInstruction;
@@ -397,7 +398,7 @@ public class Signatures {
             TypeReference real = findRealTypeForSigType(checkedType);
             if (real != null) {
                 // Found a real type
-                SSAInstruction ii = I_FACTORY.InstanceofInstruction(i.getDef(), i.getRef(), real);
+                SSAInstruction ii = I_FACTORY.InstanceofInstruction(i.iindex, i.getDef(), i.getRef(), real);
                 if (PointsToAnalysis.outputLevel >= 5) {
                     System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                 }
@@ -422,7 +423,7 @@ public class Signatures {
             TypeReference real = findRealTypeForSigType(checkedType);
             if (real != null) {
                 // Found a real type
-                SSAInstruction ii = I_FACTORY.CheckCastInstruction(i.getResult(), i.getVal(), real, i.isPEI());
+                SSAInstruction ii = I_FACTORY.CheckCastInstruction(i.iindex, i.getResult(), i.getVal(), real, i.isPEI());
                 if (PointsToAnalysis.outputLevel >= 5) {
                     System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                 }
@@ -456,13 +457,13 @@ public class Signatures {
                 if (newField != null) {
                     // The field exists on the real type use it to create a new instruction
                     if (i.isStatic()) {
-                        SSAInstruction ii = I_FACTORY.GetInstruction(i.getDef(), newFR);
+                        SSAInstruction ii = I_FACTORY.GetInstruction(i.iindex, i.getDef(), newFR);
                         if (PointsToAnalysis.outputLevel >= 5) {
                             System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                         }
                         return ii;
                     }
-                    SSAInstruction ii = I_FACTORY.GetInstruction(i.getDef(), i.getRef(), newFR);
+                    SSAInstruction ii = I_FACTORY.GetInstruction(i.iindex, i.getDef(), i.getRef(), newFR);
                     if (PointsToAnalysis.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
@@ -515,7 +516,8 @@ public class Signatures {
                         params[j] = i.getUse(j);
                     }
                     int returnValue = i.getNumberOfReturnValues() > 0 ? i.getDef() : -1;
-                    SSAInstruction ii = I_FACTORY.InvokeInstruction(returnValue, params, i.getException(), newSite);
+                    SSAInstruction ii = I_FACTORY.InvokeInstruction(i.iindex, returnValue, params, i.getException(), newSite,
+                        i instanceof SSAInvokeDynamicInstruction ? ((SSAInvokeDynamicInstruction)i).getBootstrap() : null);
                     if (PointsToAnalysis.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
@@ -550,13 +552,13 @@ public class Signatures {
                 if (newField != null) {
                     // The field exists on the real type use it to create a new put instruction
                     if (i.isStatic()) {
-                        SSAInstruction ii = I_FACTORY.PutInstruction(i.getVal(), newFR);
+                        SSAInstruction ii = I_FACTORY.PutInstruction(i.iindex, i.getVal(), newFR);
                         if (PointsToAnalysis.outputLevel >= 5) {
                             System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                         }
                         return ii;
                     }
-                    SSAInstruction ii = I_FACTORY.PutInstruction(i.getRef(), i.getVal(), newFR);
+                    SSAInstruction ii = I_FACTORY.PutInstruction(i.iindex, i.getRef(), i.getVal(), newFR);
                     if (PointsToAnalysis.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
@@ -591,10 +593,10 @@ public class Signatures {
                     for (int j = 0; j < i.getNumberOfUses(); j++) {
                         dimensions[j] = i.getUse(j);
                     }
-                    ii = I_FACTORY.NewInstruction(i.getDef(), newSite, dimensions);
+                    ii = I_FACTORY.NewInstruction(i.iindex, i.getDef(), newSite, dimensions);
                 }
                 else {
-                    ii = I_FACTORY.NewInstruction(i.getDef(), newSite);
+                    ii = I_FACTORY.NewInstruction(i.iindex, i.getDef(), newSite);
                 }
                 if (PointsToAnalysis.outputLevel >= 5) {
                     System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
