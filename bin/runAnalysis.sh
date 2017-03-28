@@ -65,14 +65,14 @@ while true; do
       # make sure the signatures make it onto the analysis classpath
       args="$args '$1'"
       shift
-      args="$args '$1:$ACCRUE_BYTECODE/classes/signatures'"
+      args="$args '$1:$ACCRUE_BYTECODE/target/classes/signatures'"
       shift
       ;;
     -analysisClassPath)
       # make sure the signatures make it onto the analysis classpath
       args="$args '$1'"
       shift
-      args="$args '$1:$ACCRUE_BYTECODE/classes/signatures'"
+      args="$args '$1:$ACCRUE_BYTECODE/target/classes/signatures'"
       shift
       ;;
     -out)
@@ -94,14 +94,9 @@ while true; do
   esac
 done
 
-classpath="$ACCRUE_BYTECODE/classes"
+classpath="$ACCRUE_BYTECODE/target/classes"
 classpath="$classpath:$ACCRUE_BYTECODE/data"
-classpath="$classpath:$ACCRUE_BYTECODE/lib/JSON-java.jar"
-classpath="$classpath:$ACCRUE_BYTECODE/lib/jcommander-1.35.jar"
-classpath="$classpath:$ACCRUE_BYTECODE/lib/JFlex.jar"
-classpath="$classpath:$ACCRUE_BYTECODE/lib/java-cup-11a.jar"
-classpath="$classpath:$ACCRUE_BYTECODE/lib/apktool-cli.jar"
-classpath="$classpath:$ACCRUE_BYTECODE/lib/wala-fork.jar"
+classpath="$classpath:$ACCRUE_BYTECODE/target/dependency/*"
 
 run "$args"
 
