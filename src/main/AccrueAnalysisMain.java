@@ -55,6 +55,7 @@ import analysis.string.StringVariableFactory.StringVariable;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
+import com.ibm.wala.ipa.callgraph.AnalysisCacheImpl;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions.ReflectionOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
@@ -68,6 +69,7 @@ import com.ibm.wala.ipa.callgraph.propagation.ReceiverTypeContextSelector;
 import com.ibm.wala.ipa.callgraph.propagation.SSAPropagationCallGraphBuilder;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
+import com.ibm.wala.ipa.cha.ClassHierarchyFactory;
 import com.ibm.wala.properties.WalaProperties;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.ClassLoaderReference;
@@ -569,13 +571,13 @@ public class AccrueAnalysisMain {
                                                                                                                     throws IOException,
                                                                                                                     ClassHierarchyException {
         // Set up WALA's points-to analysis
-        AnalysisCache cache = new AnalysisCache();
+        AnalysisCache cache = new AnalysisCacheImpl();
         AnalysisScope scope = AnalysisScopeReader.readJavaScope(AnalysisUtil.PRIMORDIAL_FILENAME,
                                                         AnalysisUtil.EXCLUSIONS_FILE,
                                                         AnalysisUtil.class.getClassLoader());
         System.err.println("CLASSPATH=" + classPath);
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
-        ClassHierarchy cha = ClassHierarchy.make(scope);
+        ClassHierarchy cha = ClassHierarchyFactory.make(scope);
 
         //        Collection<CGNode> entries = g.getCallGraph().getEntrypointNodes();
         Iterable<Entrypoint> entrypoints;

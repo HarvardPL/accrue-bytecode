@@ -120,6 +120,11 @@ public class AnalysisContextInterpreter implements SSAContextInterpreter {
     }
 
     @Override
+    public IR getIRView(CGNode node) {
+        return getIR(node);
+    }
+
+    @Override
     public DefUse getDU(CGNode node) {
         return AnalysisUtil.getDefUse(node.getMethod());
     }
