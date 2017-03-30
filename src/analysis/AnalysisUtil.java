@@ -15,6 +15,7 @@ import util.print.PrettyPrinter;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
+import com.ibm.wala.ipa.callgraph.AnalysisCacheImpl;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -24,6 +25,7 @@ import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
+import com.ibm.wala.ipa.cha.ClassHierarchyFactory;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.DefUse;
 import com.ibm.wala.ssa.IR;
@@ -189,7 +191,7 @@ public class AnalysisUtil {
         AnalysisUtil.disableSignatures = disableSignatures;
         AnalysisUtil.disableObjectClone = disableObjectClone;
 
-        AnalysisUtil.cache = new AnalysisCache();
+        AnalysisUtil.cache = new AnalysisCacheImpl();
 
         AnalysisUtil.scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
                                                                EXCLUSIONS_FILE,
@@ -199,7 +201,7 @@ public class AnalysisUtil {
 
         long start = System.currentTimeMillis();
 
-        AnalysisUtil.cha = ClassHierarchy.make(scope);
+        AnalysisUtil.cha = ClassHierarchyFactory.make(scope);
         System.err.println(AnalysisUtil.cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
         if (!AccrueAnalysisMain.testMode) {
