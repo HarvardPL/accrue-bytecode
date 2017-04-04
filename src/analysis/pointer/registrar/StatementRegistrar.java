@@ -1141,34 +1141,29 @@ public class StatementRegistrar {
                 SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) succ.iterator().next();
 
                 Iterator<TypeReference> caughtTypes = succ.getCaughtExceptionTypes();
-                caughtType = caughtTypes.next();
-                if (caughtTypes.hasNext()) {
-                    System.err.println("More than one catch type? in BB" + bb.getNumber());
-                    Iterator<TypeReference> caughtTypes2 = succ.getCaughtExceptionTypes();
-                    while (caughtTypes2.hasNext()) {
-                        System.err.println(PrettyPrinter.typeString(caughtTypes2.next()));
+                assert caughtTypes.hasNext();
+                while(caughtTypes.hasNext()) {
+                    caughtType = caughtTypes.next();
+                    if(!caughtType.equals(types.getType(catchIns.getException())))
+                        continue;
+
+                    IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
+                    boolean definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
+                    boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
+
+                    if (maybeCaught || definitelyCaught) {
+                        caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
+                        this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod()));
                     }
-                    CFGWriter.writeToFile(ir);
-                    assert false;
+
+                    // if we have definitely caught the exception, no need to add more exception assignment statements.
+                    if (definitelyCaught) {
+                        break;
+                    }
+
+                    // Add this exception to the set of types that have already been caught
+                    notType.add(AnalysisUtil.getClassHierarchy().lookupClass(caughtType));
                 }
-                assert caughtType.equals(types.getType(catchIns.getException()));
-
-                IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
-                boolean definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
-                boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
-
-                if (maybeCaught || definitelyCaught) {
-                    caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
-                    this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod()));
-                }
-
-                // if we have definitely caught the exception, no need to add more exception assignment statements.
-                if (definitelyCaught) {
-                    break;
-                }
-
-                // Add this exception to the set of types that have already been caught
-                notType.add(AnalysisUtil.getClassHierarchy().lookupClass(caughtType));
             }
             else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";

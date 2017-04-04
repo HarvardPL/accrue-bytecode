@@ -72,7 +72,7 @@ public class StatementFactory {
 
         ClassInitStatement s = new ClassInitStatement(clinits, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert map.put(new StatementKey(clinits, i), s) == null : "Duplicate classinit " + clinits + " from " + i
+        assert map.put(new StatementKey(clinits, m, i), s) == null : "Duplicate classinit " + clinits + " from " + i
                 + " in " + m;
         return s;
     }
@@ -143,7 +143,7 @@ public class StatementFactory {
 
         LocalToArrayStatement s = new LocalToArrayStatement(array, local, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert map.put(new StatementKey(array, local, i), s) == null;
+        assert map.put(new StatementKey(array, local, m, i), s) == null;
         return s;
     }
 
@@ -166,7 +166,7 @@ public class StatementFactory {
 
         LocalToFieldStatement s = new LocalToFieldStatement(o, f, v, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert map.put(new StatementKey(o, f, i), s) == null;
+        assert map.put(new StatementKey(o, f, m, i), s) == null;
         return s;
     }
 
@@ -224,7 +224,7 @@ public class StatementFactory {
 
         LocalToStaticFieldStatement s = new LocalToStaticFieldStatement(staticField, local, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert map.put(new StatementKey(staticField, i), s) == null;
+        assert map.put(new StatementKey(staticField, m, i), s) == null;
         return s;
     }
 
@@ -402,7 +402,7 @@ public class StatementFactory {
         assert m != null;
 
         ReturnStatement s = new ReturnStatement(result, returnSummary, m);
-        assert map.put(new StatementKey(result, i), s) == null;
+        assert map.put(new StatementKey(result, m, i), s) == null;
         return s;
     }
 
@@ -591,6 +591,36 @@ public class StatementFactory {
             this.key4 = null;
             this.key5 = null;
             this.key6 = null;
+            this.key7 = null;
+        }
+
+        public StatementKey(Object key1, Object key2, Object key3, Object key4) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = null;
+            this.key6 = null;
+            this.key7 = null;
+        }
+
+        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = null;
+            this.key6 = null;
+            this.key7 = null;
+        }
+
+        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = key5;
+            this.key6 = key6;
             this.key7 = null;
         }
 
