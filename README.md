@@ -3,6 +3,23 @@ accrue-bytecode
 
 An inter-procedural analysis framework built on top of WALA (https://github.com/wala/WALA).
 
+Building with Maven
+-------------------
+
+$ mvn clean install
+
+This should be sufficient to build accrue-bytecode with Maven. This will
+download all third-party JARs necessary to build and run accrue-bytecode
+(incling WALA) and perform a full rebuild.
+
+The 'install' goal will also copy the library to the local Maven repository
+(one that is private to your home directory), allowing it to be accessed by
+other tools (such as Pidgin). After the build all the compiled class files
+(and a JAR) will be in the 'target' subdirectory.
+
+During normal development you can omit the 'clean' step (to avoid
+unnecessary recompilation).
+
 Setting up IntelliJ
 --------------------
 The following configuration should be done under *File,  Project Structure*. The WALA and SCandroid
