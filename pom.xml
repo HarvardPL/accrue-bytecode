@@ -11,7 +11,6 @@
     <maven.compiler.target>1.7</maven.compiler.target>
   </properties>
   <build>
-    <sourceDirectory>src</sourceDirectory>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -29,6 +28,12 @@
       </plugin>
     </plugins>
   </build>
+  <repositories>
+    <repository>
+      <id>Netbeans repository</id>
+      <url>http://bits.netbeans.org/maven2/</url>
+    </repository>
+  </repositories>
   <dependencies>
     <dependency>
       <groupId>com.ibm.wala</groupId>
@@ -56,6 +61,18 @@
       <groupId>org.json</groupId>
       <artifactId>json</artifactId>
       <version>20160810</version>
+    </dependency>
+
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.11</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.netbeans.external</groupId>
+      <artifactId>java-cup-11a</artifactId>
+      <version>RELEASE712</version>
     </dependency>
 
   </dependencies>
