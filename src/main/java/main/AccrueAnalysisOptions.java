@@ -6,21 +6,21 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import util.OrderedPair;
-import analysis.pointer.analyses.CrossProduct;
-import analysis.pointer.analyses.HeapAbstractionFactory;
-
 import com.beust.jcommander.IParameterValidator;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
+
+import analysis.pointer.analyses.CrossProduct;
+import analysis.pointer.analyses.HeapAbstractionFactory;
+import util.OrderedPair;
 
 public final class AccrueAnalysisOptions {
 
     /**
      * Classpath to use when none is specified
      */
-    private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
+    private static final String DEFAULT_CLASSPATH = "target/test-classes:target/classes/signatures";
 
     /**
      * Number of threads for multi-threaded pointer analysis.

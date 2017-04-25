@@ -1,11 +1,17 @@
 # Run through all the classes in the test.instruction package and generate a PDG for each. Correctness to be determined by hand.
-cd src/test/instruction
+
+if [ -z ${ACCRUE_BYTECODE+dummy} ]
+then
+    >&2 echo "Environment variable ACCRUE_BYTECODE is unset: \
+tests may fail if not run from Accrue base directory." 
+else
+    cd $ACCRUE_BYTECODE/src/test/java/test/instruction
+fi
 
 for class in *.java
 do
-    cd ../../../
     name=test.instruction.${class%.*}
     echo "CHECKING" "$name"
-    time bin/runAnalysis.sh -cp classes/test/instruction -e $name -n pdg -ea -offline -writeDotPDG
-    cd src/test/instruction
+    cd $ACCRUE_BYTECODE
+    time bin/runAnalysis.sh -e $name -n pdg -ea -writeDotPDG
 done

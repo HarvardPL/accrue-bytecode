@@ -1,5 +1,12 @@
 # bin/runBenchmarks.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt  
 # nohup bin/runBenchmarks.sh "-useSingleAllocForImmutableWrappers -useSingleAllocForPrimitiveArrays -useSingleAllocPerThrowableType"> wala$(date +"%Y.%m.%d.%H.%M.%S").txt 2> walaerr$(date +"%Y.%m.%d.%H.%M.%S").txt &                                                                                                                                                                           
+if [ -z ${ACCRUE_BYTECODE+dummy} ]
+then
+    >&2 echo "Environment variable ACCRUE_BYTECODE is unset: \
+tests may fail if not run from Accrue base directory." 
+else
+    cd $ACCRUE_BYTECODE
+fi
 
 max=1
 
