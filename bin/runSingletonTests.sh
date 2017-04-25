@@ -3,10 +3,11 @@
 if [ -z ${ACCRUE_BYTECODE+dummy} ]
 then
     >&2 echo "Environment variable ACCRUE_BYTECODE is unset: \
-tests may fail if not run from Accrue base directory." 
-else
-    cd $ACCRUE_BYTECODE
+scripts may fail if not run from top-level Accrue directory." 
+    export ACCRUE_BYTECODE=$PWD
 fi
+
+cd $ACCRUE_BYTECODE
 
 max=10
 numThreads=16
