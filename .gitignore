@@ -5,3 +5,6 @@ classes/*
 out/
 *.iml
 target/
+.classpath
+.project
+.settings/
