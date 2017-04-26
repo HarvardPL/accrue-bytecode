@@ -1,5 +1,13 @@
 # bin/runWALA.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt  
 # nohup bin/runWALA.sh > wala$(date +"%Y.%m.%d.%H.%M.%S").txt 2> walaerr$(date +"%Y.%m.%d.%H.%M.%S").txt &                                                                                                                                                                  
+if [ -z ${ACCRUE_BYTECODE+dummy} ]
+then
+    >&2 echo "Environment variable ACCRUE_BYTECODE is unset: \
+scripts may fail if not run from top-level Accrue directory." 
+    export ACCRUE_BYTECODE=$PWD
+fi
+
+cd $ACCRUE_BYTECODE
 
 max=10
 

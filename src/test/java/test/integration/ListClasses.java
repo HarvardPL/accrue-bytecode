@@ -4,17 +4,13 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 
-import junit.framework.TestCase;
-
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import util.print.PrettyPrinter;
-
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.JavaLanguage.JavaInstructionFactory;
-import com.ibm.wala.ipa.callgraph.AnalysisCache;
+import com.ibm.wala.ipa.callgraph.AnalysisCacheImpl;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CallGraph;
@@ -24,8 +20,8 @@ import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.Util;
 import com.ibm.wala.ipa.cfg.BasicBlockInContext;
 import com.ibm.wala.ipa.cfg.InterproceduralCFG;
-import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
+import com.ibm.wala.ipa.cha.ClassHierarchyFactory;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
@@ -33,6 +29,9 @@ import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.util.config.AnalysisScopeReader;
+
+import junit.framework.TestCase;
+import util.print.PrettyPrinter;
 
 /**
  * Tests of various flow analysis engines.
@@ -53,7 +52,7 @@ public class ListClasses extends TestCase {
 
         try {
             long start = System.currentTimeMillis();
-            cha = ClassHierarchy.make(scope);
+            cha = ClassHierarchyFactory.make(scope);
             System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
                                             + (System.currentTimeMillis() - start) + "ms");
         } catch (ClassHierarchyException e) {
@@ -63,7 +62,7 @@ public class ListClasses extends TestCase {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see junit.framework.TestCase#tearDown()
      */
     @AfterClass
@@ -89,7 +88,7 @@ public class ListClasses extends TestCase {
         AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
         System.out.println("Made options");
 
-        CallGraphBuilder builder = Util.makeZeroOneCFABuilder(options, new AnalysisCache(), cha, scope);
+        CallGraphBuilder builder = Util.makeZeroOneCFABuilder(options, new AnalysisCacheImpl(), cha, scope);
         // CallGraphBuilder builder = Util.makeRTABuilder(options,
         // new AnalysisCache(), cha, scope);
 
