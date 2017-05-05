@@ -509,13 +509,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     public static MutableIntSet makeConcurrentIntSet() {
         return new ConcurrentMonotonicIntHashSet(AnalysisUtil.numThreads);
-        //return new ConcurrentIntHashSet(16, 0.75f, AnalysisUtil.numThreads);
         //return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
         return new ConcurrentMonotonicIntHashMap<>(AnalysisUtil.numThreads);
-        //return new ConcurrentIntHashMap<>(16, 0.75f, AnalysisUtil.numThreads);
     }
 
     /**
