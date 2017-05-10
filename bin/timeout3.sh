@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# From http://www.bashcookbook.com/bashinfo/source/bash-4.0/examples/scripts/timeout3
+#
 # The Bash shell script executes a command with a time-out.
 # Upon time-out expiration SIGTERM (15) is sent to the process. If the signal
 # is blocked, then the subsequent SIGKILL (9) terminates it.

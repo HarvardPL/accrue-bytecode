@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ -z ${ACCRUE_BYTECODE+dummy} ]
+if [ -z ${ACCRUE_BYTECODE} ]
 then
     >&2 echo "Environment variable ACCRUE_BYTECODE is unset: \
 scripts may fail if not run from top-level Accrue directory." 
